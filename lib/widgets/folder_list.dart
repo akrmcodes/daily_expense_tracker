@@ -7,7 +7,7 @@ class FolderList extends StatelessWidget {
   final void Function(String folderName)? onFolderTap;
 
   const FolderList({Key? key, required this.transactions, this.onFolderTap})
-    : super(key: key);
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +23,8 @@ class FolderList extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         ...folders.map((folder) {
-          final folderTransactions = transactions
-              .where((t) => t.folder == folder)
-              .toList();
+          final folderTransactions =
+              transactions.where((t) => t.folder == folder).toList();
           final folderBalance = folderTransactions.fold<double>(
             0.0,
             (sum, t) => sum + (t.isIncome ? t.amount : -t.amount),
@@ -33,6 +32,9 @@ class FolderList extends StatelessWidget {
 
           return Card(
             color: Colors.grey[900],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: ListTile(
               title: Text(
                 folder,
@@ -44,14 +46,15 @@ class FolderList extends StatelessWidget {
               subtitle: Text("الرصيد: ${folderBalance.toStringAsFixed(2)}"),
               trailing: const Icon(Icons.arrow_forward_ios),
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => FolderDetailsScreen(
-                      folderName: folder,
-                      allTransactions: transactions,
+                if (onFolderTap != null) {
+                  onFolderTap!(folder);
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FolderDetailsScreen(folderName: folder),
                     ),
-                  ),
-                );
+                  );
+                }
               },
             ),
           );

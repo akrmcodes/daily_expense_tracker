@@ -1,29 +1,28 @@
 import 'package:hive/hive.dart';
-
 part 'transaction_model.g.dart';
 
 @HiveType(typeId: 0)
 class TransactionModel extends HiveObject {
   @HiveField(0)
-  final String name;
+  String name;
 
   @HiveField(1)
-  final double amount;
+  double amount;
 
   @HiveField(2)
-  final bool isIncome;
+  bool isIncome;
 
   @HiveField(3)
-  final DateTime date;
+  DateTime date;
 
   @HiveField(4)
-  final String? notes;
+  String? notes;
 
   @HiveField(5)
-  final String folder;
+  String folder;
 
   @HiveField(6)
-  final String account;
+  String account;
 
   TransactionModel({
     required this.name,

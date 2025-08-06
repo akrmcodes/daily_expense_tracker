@@ -1,24 +1,17 @@
 import 'package:flutter/material.dart';
-import '../models/transaction_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/app_state_provider.dart';
 import '../widgets/balances_card.dart';
 import '../widgets/account_list.dart';
 import 'add_transaction_screen.dart';
 
-class FolderDetailsScreen extends StatelessWidget {
+class FolderDetailsScreen extends ConsumerWidget {
   final String folderName;
-  final List<TransactionModel> allTransactions;
-
-  const FolderDetailsScreen({
-    Key? key,
-    required this.folderName,
-    required this.allTransactions,
-  }) : super(key: key);
+  const FolderDetailsScreen({Key? key, required this.folderName}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final folderTransactions = allTransactions
-        .where((t) => t.folder == folderName)
-        .toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final folderTransactions = ref.watch(appStateProvider.notifier).getTransactionsForFolder(folderName);
 
     return Scaffold(
       appBar: AppBar(title: Text(folderName), centerTitle: true),
@@ -31,9 +24,7 @@ class FolderDetailsScreen extends StatelessWidget {
             const SizedBox(height: 24),
             AccountList(
               transactions: folderTransactions,
-              onAccountTap: (accountName) {
-                // لاحقًا: فتح شاشة تفاصيل الحساب
-              },
+              onAccountTap: (accountName) {},
             ),
           ],
         ),
@@ -42,10 +33,7 @@ class FolderDetailsScreen extends StatelessWidget {
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => AddTransactionScreen(
-                allTransactions:
-                    allTransactions, // أو أي قائمة معاملات موجودة لديك
-              ),
+              builder: (_) => AddTransactionScreen(folderName: folderName),
             ),
           );
         },
