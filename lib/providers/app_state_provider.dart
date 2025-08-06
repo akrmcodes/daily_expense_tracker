@@ -2,48 +2,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import '../models/transaction_model.dart';
 
-final transactionBoxProvider = Provider<Box<TransactionModel>>((ref) {
-  return Hive.box<TransactionModel>('transactions');
+final appStateProvider = StateNotifierProvider<AppStateNotifier, List<TransactionModel>>((ref) {
+  return AppStateNotifier();
 });
 
-final appStateProvider = StateNotifierProvider<TransactionNotifier, List<TransactionModel>>((ref) {
-  final box = ref.watch(transactionBoxProvider);
-  return TransactionNotifier(box);
-});
+class AppStateNotifier extends StateNotifier<List<TransactionModel>> {
+  AppStateNotifier() : super([]) {
+    _loadTransactions();
+  }
 
-class TransactionNotifier extends StateNotifier<List<TransactionModel>> {
-  final Box<TransactionModel> _box;
-
-  TransactionNotifier(this._box) : super(_box.values.toList());
+  Future<void> _loadTransactions() async {
+    final box = Hive.box<TransactionModel>('transactions');
+    state = box.values.toList();
+  }
 
   void addTransaction(TransactionModel transaction) async {
-    await _box.add(transaction);
-    state = _box.values.toList();
+    final box = Hive.box<TransactionModel>('transactions');
+    await box.add(transaction);
+    state = [...state, transaction];
   }
 
   void deleteTransaction(TransactionModel transaction) async {
     await transaction.delete();
-    state = _box.values.toList();
+    state = state.where((t) => t.key != transaction.key).toList();
   }
-
-  void updateTransaction(TransactionModel transaction) async {
-    await transaction.save();
-    state = _box.values.toList();
-  }
-
-  List<String> getFolders() {
-    return state.map((t) => t.folder).toSet().toList();
-  }
-
-  List<TransactionModel> getTransactionsForFolder(String folder) {
-    return state.where((t) => t.folder == folder).toList();
-  }
-
-  List<String> getAccountsInFolder(String folder) {
-    return getTransactionsForFolder(folder).map((t) => t.account).toSet().toList();
-  }
-
-  List<TransactionModel> getTransactionsForAccount(String folder, String account) {
-    return getTransactionsForFolder(folder).where((t) => t.account == account).toList();
-  }
+  void addAccount(String folder, String account) {
+  final newTransaction = TransactionModel(
+    name: "",
+    amount: 0,
+    isIncome: true,
+    date: DateTime.now(),
+    folder: folder,
+    account: account,
+  );
+  final box = Hive.box<TransactionModel>('transactions');
+  box.add(newTransaction);
+  state = [...state, newTransaction];
+}
+  
 }
