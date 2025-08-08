@@ -6,11 +6,13 @@ import '../widgets/account_list.dart';
 import 'add_account_screen.dart';
 import 'account_details_screen.dart';
 import 'create_folder_screen.dart';
+import 'folder_details_screen.dart'; // ✅ مهم لاستدعاء نفس الشاشة عند الدخول لمجلد فرعي
 
 class FolderDetailsScreen extends ConsumerWidget {
   final int folderId;
 
-  const FolderDetailsScreen({Key? key, required this.folderId}) : super(key: key);
+  const FolderDetailsScreen({Key? key, required this.folderId})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -23,6 +25,11 @@ class FolderDetailsScreen extends ConsumerWidget {
         .where((t) => t.folder == folderName)
         .toList();
 
+    // ✅ جلب المجلدات الفرعية
+    final subFolders = appState.folders
+        .where((f) => f.parentFolderId == folderId)
+        .toList();
+
     return Scaffold(
       appBar: AppBar(title: Text(folderName), centerTitle: true),
       body: SingleChildScrollView(
@@ -31,6 +38,40 @@ class FolderDetailsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             BalanceCard(transactions: folderTransactions),
+
+            // ✅ عرض المجلدات الفرعية إذا كانت موجودة
+            if (subFolders.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                'المجلدات الفرعية',
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 10),
+              ...subFolders.map((subFolder) {
+                return Card(
+                  color: Colors.grey[900],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    title: Text(subFolder.name),
+                    subtitle: const Text('مجلد فرعي'),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => FolderDetailsScreen(
+                            folderId: subFolder.key as int,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }).toList(),
+            ],
+
             const SizedBox(height: 24),
             Text(
               'الحسابات في هذا المجلد',
@@ -74,7 +115,8 @@ class FolderDetailsScreen extends ConsumerWidget {
                       Navigator.pop(context);
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => AddAccountScreen(folderName: folderName),
+                          builder: (_) =>
+                              AddAccountScreen(folderName: folderName),
                         ),
                       );
                     },
@@ -86,7 +128,8 @@ class FolderDetailsScreen extends ConsumerWidget {
                       Navigator.pop(context);
                       showDialog(
                         context: context,
-                        builder: (_) => CreateFolderScreen(parentFolderId: folderId),
+                        builder: (_) =>
+                            CreateFolderScreen(parentFolderId: folderId),
                       );
                     },
                   ),

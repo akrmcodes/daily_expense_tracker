@@ -48,11 +48,20 @@ class AppStateNotifier extends StateNotifier<AppState> {
     state = AppState(transactions: updated, folders: state.folders);
   }
 
-  void addFolder(FolderModel folder) async {
+  Future<void> addFolder(FolderModel folder) async {
     final box = Hive.box<FolderModel>('folders');
+
+    // 🟣 إضافة المجلد في Hive
     await box.add(folder);
-    final updated = [...state.folders, folder];
-    state = AppState(transactions: state.transactions, folders: updated);
+
+    // ✅ إعادة تحميل المجلدات المحدثة
+    final updatedFolders = box.values.toList();
+
+    // 🔁 تحديث الحالة
+    state = AppState(
+      transactions: state.transactions,
+      folders: updatedFolders,
+    );
   }
 
   void addAccount(String folderName, String accountName) async {
