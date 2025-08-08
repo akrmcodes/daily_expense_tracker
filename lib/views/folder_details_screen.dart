@@ -1,5 +1,3 @@
-// lib/views/folder_details_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_state_provider.dart';
@@ -7,19 +5,21 @@ import '../widgets/balances_card.dart';
 import '../widgets/account_list.dart';
 import 'add_account_screen.dart';
 import 'account_details_screen.dart';
+import 'create_folder_screen.dart';
 
 class FolderDetailsScreen extends ConsumerWidget {
-  final String folderName;
+  final int folderId;
 
-  const FolderDetailsScreen({Key? key, required this.folderName})
-    : super(key: key);
+  const FolderDetailsScreen({Key? key, required this.folderId}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1) مزود الحالة appStateProvider يعيد هنا مباشرة List<TransactionModel>
-    final allTransactions = ref.watch(appStateProvider);
-    // لذا لا نحتاج .transactions
-    final folderTransactions = allTransactions
+    final appState = ref.watch(appStateProvider);
+
+    final folder = appState.folders.firstWhere((f) => f.key == folderId);
+    final folderName = folder.name;
+
+    final folderTransactions = appState.transactions
         .where((t) => t.folder == folderName)
         .toList();
 
@@ -57,14 +57,46 @@ class FolderDetailsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddAccountScreen(folderName: folderName),
+          showModalBottomSheet(
+            context: context,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (context) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Wrap(
+                runSpacing: 16,
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.person_add),
+                    title: const Text('إضافة حساب'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AddAccountScreen(folderName: folderName),
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.create_new_folder),
+                    title: const Text('إنشاء مجلد فرعي'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      showDialog(
+                        context: context,
+                        builder: (_) => CreateFolderScreen(parentFolderId: folderId),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           );
         },
         child: const Icon(Icons.add),
-        tooltip: 'إضافة حساب جديد',
+        tooltip: 'إضافة',
       ),
     );
   }

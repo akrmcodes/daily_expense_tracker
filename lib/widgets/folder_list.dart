@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
-import '../models/transaction_model.dart';
+import '../models/folder_model.dart';
 import '../views/folder_details_screen.dart';
 
 class FolderList extends StatelessWidget {
-  final List<TransactionModel> transactions;
-  final void Function(String folderName)? onFolderTap;
+  final List<FolderModel> folders;
+  final void Function(FolderModel folder)? onFolderTap;
 
-  const FolderList({Key? key, required this.transactions, this.onFolderTap})
+  const FolderList({Key? key, required this.folders, this.onFolderTap})
       : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final folders = transactions.map((t) => t.folder).toSet().toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -23,13 +21,6 @@ class FolderList extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         ...folders.map((folder) {
-          final folderTransactions =
-              transactions.where((t) => t.folder == folder).toList();
-          final folderBalance = folderTransactions.fold<double>(
-            0.0,
-            (sum, t) => sum + (t.isIncome ? t.amount : -t.amount),
-          );
-
           return Card(
             color: Colors.grey[900],
             shape: RoundedRectangleBorder(
@@ -37,13 +28,15 @@ class FolderList extends StatelessWidget {
             ),
             child: ListTile(
               title: Text(
-                folder,
+                folder.name,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: Text("الرصيد: ${folderBalance.toStringAsFixed(2)}"),
+              subtitle: folder.parentFolderId != null
+                  ? const Text("مجلد فرعي")
+                  : null,
               trailing: const Icon(Icons.arrow_forward_ios),
               onTap: () {
                 if (onFolderTap != null) {
@@ -51,7 +44,7 @@ class FolderList extends StatelessWidget {
                 } else {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => FolderDetailsScreen(folderName: folder),
+                      builder: (_) => FolderDetailsScreen(folderId: folder.key as int),
                     ),
                   );
                 }

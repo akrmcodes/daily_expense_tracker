@@ -5,7 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'models/transaction_model.dart';
 import 'views/home_screen.dart';
-
+import './models/folder_model.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -13,6 +13,9 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(TransactionModelAdapter());
   await Hive.openBox<TransactionModel>('transactions');
+  Hive.registerAdapter(FolderModelAdapter());
+  await Hive.openBox<FolderModel>('folders');
+
 
   // تهيئة بيانات اللغة العربية
   await initializeDateFormatting('ar');

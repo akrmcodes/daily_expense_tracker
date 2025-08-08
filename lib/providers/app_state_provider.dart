@@ -1,43 +1,73 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import '../models/transaction_model.dart';
+import '../models/folder_model.dart';
 
-final appStateProvider = StateNotifierProvider<AppStateNotifier, List<TransactionModel>>((ref) {
+/// الحالة العامة للتطبيق تشمل المعاملات والمجلدات
+class AppState {
+  final List<TransactionModel> transactions;
+  final List<FolderModel> folders;
+
+  AppState({
+    required this.transactions,
+    required this.folders,
+  });
+}
+
+/// مزود الحالة باستخدام Riverpod
+final appStateProvider = StateNotifierProvider<AppStateNotifier, AppState>((ref) {
   return AppStateNotifier();
 });
 
-class AppStateNotifier extends StateNotifier<List<TransactionModel>> {
-  AppStateNotifier() : super([]) {
-    _loadTransactions();
+/// مدير الحالة
+class AppStateNotifier extends StateNotifier<AppState> {
+  AppStateNotifier() : super(AppState(transactions: [], folders: [])) {
+    _loadData();
   }
 
-  Future<void> _loadTransactions() async {
-    final box = Hive.box<TransactionModel>('transactions');
-    state = box.values.toList();
+  Future<void> _loadData() async {
+    final transactionBox = Hive.box<TransactionModel>('transactions');
+    final folderBox = Hive.box<FolderModel>('folders');
+
+    final transactions = transactionBox.values.toList();
+    final folders = folderBox.values.toList();
+
+    state = AppState(transactions: transactions, folders: folders);
   }
 
   void addTransaction(TransactionModel transaction) async {
     final box = Hive.box<TransactionModel>('transactions');
     await box.add(transaction);
-    state = [...state, transaction];
+    final updated = [...state.transactions, transaction];
+    state = AppState(transactions: updated, folders: state.folders);
   }
 
   void deleteTransaction(TransactionModel transaction) async {
     await transaction.delete();
-    state = state.where((t) => t.key != transaction.key).toList();
+    final updated = state.transactions.where((t) => t.key != transaction.key).toList();
+    state = AppState(transactions: updated, folders: state.folders);
   }
-  void addAccount(String folder, String account) {
-  final newTransaction = TransactionModel(
-    name: "",
-    amount: 0,
-    isIncome: true,
-    date: DateTime.now(),
-    folder: folder,
-    account: account,
-  );
-  final box = Hive.box<TransactionModel>('transactions');
-  box.add(newTransaction);
-  state = [...state, newTransaction];
-}
-  
+
+  void addFolder(FolderModel folder) async {
+    final box = Hive.box<FolderModel>('folders');
+    await box.add(folder);
+    final updated = [...state.folders, folder];
+    state = AppState(transactions: state.transactions, folders: updated);
+  }
+
+  void addAccount(String folderName, String accountName) async {
+    final box = Hive.box<TransactionModel>('transactions');
+    final dummy = TransactionModel(
+      name: 'حساب $accountName',
+      amount: 0,
+      isIncome: true,
+      date: DateTime.now(),
+      folder: folderName,
+      account: accountName,
+      notes: 'تم إنشاء الحساب',
+    );
+    await box.add(dummy);
+    final updated = [...state.transactions, dummy];
+    state = AppState(transactions: updated, folders: state.folders);
+  }
 }

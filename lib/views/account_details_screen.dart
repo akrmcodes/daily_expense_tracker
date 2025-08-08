@@ -17,22 +17,21 @@ class AccountDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final transactions = ref.watch(appStateProvider);
+    final appState = ref.watch(appStateProvider);
 
-    // تصفية المعاملات حسب الحساب والمجلد
-    final accountTransactions =
-        transactions
-            .where((t) => t.folder == folderName && t.account == accountName)
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+    final accountTransactions = appState.transactions
+        .where((t) => t.folder == folderName && t.account == accountName)
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
 
-    // حساب الرصيد
     double totalIncome = accountTransactions
         .where((t) => t.isIncome)
         .fold(0, (sum, t) => sum + t.amount);
+
     double totalExpense = accountTransactions
         .where((t) => !t.isIncome)
         .fold(0, (sum, t) => sum + t.amount);
+
     double netBalance = totalIncome - totalExpense;
     double runningBalance = 0;
 
@@ -50,19 +49,13 @@ class AccountDetailsScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "الدخل: +${totalIncome.toStringAsFixed(2)}",
-                      style: const TextStyle(color: Colors.green),
-                    ),
-                    Text(
-                      "المصروف: -${totalExpense.toStringAsFixed(2)}",
-                      style: const TextStyle(color: Colors.red),
-                    ),
+                    Text("الدخل: +${totalIncome.toStringAsFixed(2)}",
+                        style: const TextStyle(color: Colors.green)),
+                    Text("المصروف: -${totalExpense.toStringAsFixed(2)}",
+                        style: const TextStyle(color: Colors.red)),
                     const Divider(),
-                    Text(
-                      "الرصيد الصافي: ${netBalance.toStringAsFixed(2)}",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    Text("الرصيد الصافي: ${netBalance.toStringAsFixed(2)}",
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -88,13 +81,11 @@ class AccountDetailsScreen extends ConsumerWidget {
                           Text(DateFormat.yMMMd('ar').format(t.date)),
                           if (t.notes != null && t.notes!.isNotEmpty)
                             Text("ملاحظة: ${t.notes!}"),
-                          Text(
-                            "الرصيد بعد العملية: \$${runningBalance.toStringAsFixed(2)}",
-                          ),
+                          Text("الرصيد بعد العملية: ${runningBalance.toStringAsFixed(2)}"),
                         ],
                       ),
                       trailing: Text(
-                        "${t.isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}",
+                        "${t.isIncome ? '+' : '-'}${t.amount.toStringAsFixed(2)}",
                         style: TextStyle(
                           color: t.isIncome ? Colors.green : Colors.red,
                         ),
