@@ -5,6 +5,7 @@ import 'create_folder_screen.dart';
 import 'folder_details_screen.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/balance_card.dart';
+import '../utils/transitions.dart';
 
 // إضافات الواجهة الجديدة:
 import '../widgets/app/panel_card.dart';
@@ -74,9 +75,9 @@ class HomeScreen extends ConsumerWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            FolderDetailsScreen(folderId: folder.key as int),
+                      slideFadeRoute(
+                        context: context,
+                        page: FolderDetailsScreen(folderId: folder.key as int),
                       ),
                     );
                   },

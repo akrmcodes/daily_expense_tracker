@@ -7,6 +7,7 @@ import 'add_account_screen.dart';
 import 'account_details_screen.dart';
 import 'create_folder_screen.dart';
 import 'folder_details_screen.dart'; // ✅ مهم لاستدعاء نفس الشاشة عند الدخول لمجلد فرعي
+import '../utils/transitions.dart';
 
 class FolderDetailsScreen extends ConsumerWidget {
   final int folderId;
@@ -84,8 +85,9 @@ class FolderDetailsScreen extends ConsumerWidget {
               folderName: folderName,
               onAccountTap: (accountName) {
                 Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => AccountDetailsScreen(
+                  slideFadeRoute(
+                    context: context,
+                    page: AccountDetailsScreen(
                       folderName: folderName,
                       accountName: accountName,
                     ),
@@ -114,9 +116,9 @@ class FolderDetailsScreen extends ConsumerWidget {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              AddAccountScreen(folderName: folderName),
+                        slideFadeRoute(
+                          context: context,
+                          page: AddAccountScreen(folderName: folderName),
                         ),
                       );
                     },

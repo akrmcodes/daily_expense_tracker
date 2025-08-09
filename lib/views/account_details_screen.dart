@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/app_state_provider.dart';
 import '../widgets/transaction_card.dart';
 import 'add_transaction_screen.dart';
+import '../utils/transitions.dart';
 
 class AccountDetailsScreen extends ConsumerWidget {
   final String folderName;
@@ -19,10 +20,11 @@ class AccountDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appStateProvider);
 
-    final accountTransactions = appState.transactions
-        .where((t) => t.folder == folderName && t.account == accountName)
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    final accountTransactions =
+        appState.transactions
+            .where((t) => t.folder == folderName && t.account == accountName)
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     final totalIncome = accountTransactions
         .where((t) => t.isIncome)
@@ -44,19 +46,27 @@ class AccountDetailsScreen extends ConsumerWidget {
           children: [
             Card(
               color: Colors.grey[900],
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("الدخل: +${totalIncome.toStringAsFixed(2)}",
-                        style: const TextStyle(color: Colors.green)),
-                    Text("المصروف: -${totalExpense.toStringAsFixed(2)}",
-                        style: const TextStyle(color: Colors.red)),
+                    Text(
+                      "الدخل: +${totalIncome.toStringAsFixed(2)}",
+                      style: const TextStyle(color: Colors.green),
+                    ),
+                    Text(
+                      "المصروف: -${totalExpense.toStringAsFixed(2)}",
+                      style: const TextStyle(color: Colors.red),
+                    ),
                     const Divider(),
-                    Text("الرصيد الصافي: ${netBalance.toStringAsFixed(2)}",
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      "الرصيد الصافي: ${netBalance.toStringAsFixed(2)}",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ],
                 ),
               ),
@@ -69,7 +79,8 @@ class AccountDetailsScreen extends ConsumerWidget {
                 itemCount: accountTransactions.length,
                 itemBuilder: (_, i) {
                   final t = accountTransactions[i];
-                  final nextBalance = runningBalance + (t.isIncome ? t.amount : -t.amount);
+                  final nextBalance =
+                      runningBalance + (t.isIncome ? t.amount : -t.amount);
                   final card = TransactionCard(
                     transaction: t,
                     runningBalanceAfter: nextBalance,
@@ -85,8 +96,9 @@ class AccountDetailsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddTransactionScreen(
+            slideFadeRoute(
+              context: context,
+              page: AddTransactionScreen(
                 folderName: folderName,
                 accountName: accountName,
               ),
