@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/folder_model.dart';
 import '../providers/app_state_provider.dart';
 import 'create_folder_screen.dart';
 import 'folder_details_screen.dart';
+
+// إضافات الواجهة الجديدة:
+import '../widgets/app/panel_card.dart';
+import '../widgets/app/section_title.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -13,55 +16,37 @@ class HomeScreen extends ConsumerWidget {
     final appState = ref.watch(appStateProvider);
 
     // مجلدات المستوى الأعلى فقط
-    final folders = appState.folders
-        .where((f) => f.parentFolderId == null)
-        .toList();
+    final folders = appState.folders.where((f) => f.parentFolderId == null).toList();
     final transactions = appState.transactions;
 
-    double totalIncome = transactions
-        .where((t) => t.isIncome)
-        .fold(0, (sum, t) => sum + t.amount);
-    double totalExpense = transactions
-        .where((t) => !t.isIncome)
-        .fold(0, (sum, t) => sum + t.amount);
-    double netBalance = totalIncome - totalExpense;
+    final totalIncome = transactions.where((t) => t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
+    final totalExpense = transactions.where((t) => !t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
+    final netBalance = totalIncome - totalExpense;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الرئيسية'), centerTitle: true),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ بطاقة الرصيد بلون متوافق مع الوضع الليلي
-          Card(
-            margin: const EdgeInsets.all(12),
-            color: const Color(0xFF1E1E2C), // لون داكن
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'الإيرادات: +${totalIncome.toStringAsFixed(2)}',
-                    style: const TextStyle(color: Colors.green),
-                  ),
-                  Text(
-                    'المصروفات: -${totalExpense.toStringAsFixed(2)}',
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const Divider(color: Colors.grey),
-                  Text(
-                    'الرصيد الصافي: ${netBalance.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
+          // ✅ PanelCard من نظام التصميم
+          PanelCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('الإيرادات: +${totalIncome.toStringAsFixed(2)}', style: const TextStyle(color: Colors.green)),
+                Text('المصروفات: -${totalExpense.toStringAsFixed(2)}', style: const TextStyle(color: Colors.red)),
+                const Divider(),
+                Text('الرصيد الصافي: ${netBalance.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
             ),
           ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12.0),
+            child: SectionTitle('المجلدات'),
+          ),
+
           // ✅ قائمة المجلدات
           Expanded(
             child: ListView.builder(
@@ -69,17 +54,13 @@ class HomeScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final folder = folders[index];
                 return ListTile(
-                  leading: const Icon(Icons.folder, color: Colors.white),
-                  title: Text(
-                    folder.name,
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                  leading: const Icon(Icons.folder),
+                  title: Text(folder.name),
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            FolderDetailsScreen(folderId: folder.key as int),
+                        builder: (_) => FolderDetailsScreen(folderId: folder.key as int),
                       ),
                     );
                   },
