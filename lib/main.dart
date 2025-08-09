@@ -8,6 +8,7 @@ import 'models/transaction_model.dart';
 import 'models/folder_model.dart';
 import 'views/home_screen.dart';
 import 'theme/app_theme.dart';
+import 'providers/theme_provider.dart'; // ✅ جديد
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +26,13 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget { // ✅ تغيّرت من Stateless إلى ConsumerWidget
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider); // ✅ قراءة حالة الثيم
+
     return MaterialApp(
       locale: const Locale('ar'),
       supportedLocales: const [Locale('ar'), Locale('en')],
@@ -40,7 +43,7 @@ class MyApp extends StatelessWidget {
       ],
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.dark, // لاحقًا نضيف زر تبديل
+      themeMode: themeMode, // ✅ تطبيق وضع الثيم من المزود
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
     );

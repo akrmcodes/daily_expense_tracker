@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import '../models/transaction_model.dart';
 import '../models/folder_model.dart';
 
+
 /// الحالة العامة للتطبيق تشمل المعاملات والمجلدات
 class AppState {
   final List<TransactionModel> transactions;

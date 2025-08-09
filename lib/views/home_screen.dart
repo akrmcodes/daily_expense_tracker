@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_state_provider.dart';
 import 'create_folder_screen.dart';
 import 'folder_details_screen.dart';
+import '../providers/theme_provider.dart';
 
 // إضافات الواجهة الجديدة:
 import '../widgets/app/panel_card.dart';
@@ -16,15 +17,36 @@ class HomeScreen extends ConsumerWidget {
     final appState = ref.watch(appStateProvider);
 
     // مجلدات المستوى الأعلى فقط
-    final folders = appState.folders.where((f) => f.parentFolderId == null).toList();
+    final folders = appState.folders
+        .where((f) => f.parentFolderId == null)
+        .toList();
     final transactions = appState.transactions;
 
-    final totalIncome = transactions.where((t) => t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
-    final totalExpense = transactions.where((t) => !t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
+    final totalIncome = transactions
+        .where((t) => t.isIncome)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final totalExpense = transactions
+        .where((t) => !t.isIncome)
+        .fold(0.0, (sum, t) => sum + t.amount);
     final netBalance = totalIncome - totalExpense;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الرئيسية'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('الرئيسية'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'تبديل الثيم',
+            icon: const Icon(Icons.brightness_6),
+            onPressed: () {
+              final notifier = ref.read(themeModeProvider.notifier);
+              notifier.state = notifier.state == ThemeMode.dark
+                  ? ThemeMode.light
+                  : ThemeMode.dark;
+            },
+          ),
+        ],
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -33,11 +55,19 @@ class HomeScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('الإيرادات: +${totalIncome.toStringAsFixed(2)}', style: const TextStyle(color: Colors.green)),
-                Text('المصروفات: -${totalExpense.toStringAsFixed(2)}', style: const TextStyle(color: Colors.red)),
+                Text(
+                  'الإيرادات: +${totalIncome.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.green),
+                ),
+                Text(
+                  'المصروفات: -${totalExpense.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.red),
+                ),
                 const Divider(),
-                Text('الرصيد الصافي: ${netBalance.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  'الرصيد الصافي: ${netBalance.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
           ),
@@ -60,7 +90,8 @@ class HomeScreen extends ConsumerWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => FolderDetailsScreen(folderId: folder.key as int),
+                        builder: (_) =>
+                            FolderDetailsScreen(folderId: folder.key as int),
                       ),
                     );
                   },
