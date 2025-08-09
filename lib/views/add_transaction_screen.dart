@@ -27,6 +27,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(title: const Text('إضافة معاملة')),
       body: Padding(
@@ -85,18 +87,22 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                ListTile(
+
+                // ✅ استخدم Card تتبع الثيم بدل لون أسود ثابت
+                Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  tileColor: Colors.grey[900],
-                  leading: const Icon(Icons.calendar_today),
-                  title: Text(
-                    'التاريخ: ${DateFormat.yMMMMd('ar').format(_selectedDate)}',
-                    textAlign: TextAlign.right,
+                  child: ListTile(
+                    leading: const Icon(Icons.calendar_today),
+                    title: Text(
+                      'التاريخ: ${DateFormat.yMMMMd('ar').format(_selectedDate)}',
+                      textAlign: TextAlign.right,
+                    ),
+                    onTap: _pickDate,
                   ),
-                  onTap: _pickDate,
                 ),
+
                 const SizedBox(height: 20),
                 ElevatedButton(onPressed: _submit, child: const Text('إضافة')),
               ],
@@ -114,7 +120,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       locale: const Locale('ar'),
-      builder: (context, child) => Theme(data: ThemeData.dark(), child: child!),
+      // مافيش builder — الحوارات هتورّث الثيم (فاتح/داكن) تلقائيًا
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
