@@ -1,11 +1,11 @@
-// lib/widgets/folder_tile.dart
 import 'package:flutter/material.dart';
 
 class FolderTile extends StatelessWidget {
   final String title;
-  final double? balance;     // رصيد المجلد (اختياري)
-  final bool isSubfolder;    // لعرض "مجلد فرعي"
+  final double? balance;
+  final bool isSubfolder;
   final VoidCallback onTap;
+  final Widget? trailing; // ← جديد
 
   const FolderTile({
     super.key,
@@ -13,6 +13,7 @@ class FolderTile extends StatelessWidget {
     required this.onTap,
     this.balance,
     this.isSubfolder = false,
+    this.trailing,
   });
 
   @override
@@ -23,20 +24,15 @@ class FolderTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: const Icon(Icons.folder),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: isSubfolder ? const Text('مجلد فرعي') : null,
-        trailing: balance != null
-            ? Text(
-                (balance!).toStringAsFixed(2),
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: balanceColor,
-                ),
-              )
-            : null,
+        trailing: trailing ??
+            (balance != null
+                ? Text(
+                    (balance!).toStringAsFixed(2),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: balanceColor),
+                  )
+                : null),
         onTap: onTap,
       ),
     );

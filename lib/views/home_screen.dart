@@ -7,7 +7,6 @@ import '../providers/theme_provider.dart';
 import '../utils/transitions.dart';
 import '../widgets/balance_card.dart';
 
-// إضافات الواجهة الجديدة:
 import '../widgets/app/section_title.dart';
 import '../widgets/app/glass_panel_card.dart';
 import '../widgets/folder_tile.dart';
@@ -29,7 +28,7 @@ class HomeScreen extends ConsumerWidget {
     final totalExpense = transactions.where((t) => !t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
     final netBalance = totalIncome - totalExpense;
 
-    // 🎨 تلوين ديناميكي للزجاج حسب الرصيد
+    // تلوين ديناميكي للزجاج حسب الرصيد
     final cs = Theme.of(context).colorScheme;
     final Color dynamicTint = netBalance >= 0 ? cs.tertiary : cs.error;
 
@@ -52,7 +51,7 @@ class HomeScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ GlassPanelCard + BalanceCard مع Elevation & Tint ديناميكي
+          // GlassPanelCard + BalanceCard
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Container(
@@ -87,7 +86,7 @@ class HomeScreen extends ConsumerWidget {
             child: SectionTitle('المجلدات'),
           ),
 
-          // ✅ قائمة المجلدات مع FolderTile + micro-animations
+          // قائمة المجلدات مع FolderTile + micro-animations + قائمة خيارات
           Expanded(
             child: ListView.builder(
               itemCount: folders.length,
@@ -102,6 +101,45 @@ class HomeScreen extends ConsumerWidget {
                 return FolderTile(
                   title: folder.name,
                   balance: folderBalance,
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == 'rename') {
+                        final newName = await _promptRename(context, folder.name);
+                        if (newName != null &&
+                            newName.trim().isNotEmpty &&
+                            newName != folder.name) {
+                          await ref
+                              .read(appStateProvider.notifier)
+                              .renameFolder(folder.key as int, newName.trim());
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('تمت إعادة التسمية')),
+                          );
+                        }
+                      } else if (value == 'delete') {
+                        final confirm = await _confirm(
+                          context,
+                          'حذف المجلد',
+                          'سيتم الحذف إذا كان المجلد فارغًا. هل تريد المتابعة؟',
+                        );
+                        if (confirm == true) {
+                          final ok = await ref
+                              .read(appStateProvider.notifier)
+                              .deleteFolderIfEmpty(folder.key as int);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok ? 'تم الحذف' : 'تعذّر الحذف: المجلد غير فارغ',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'rename', child: Text('إعادة تسمية')),
+                      PopupMenuItem(value: 'delete', child: Text('حذف')),
+                    ],
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -113,7 +151,11 @@ class HomeScreen extends ConsumerWidget {
                   },
                 )
                     .animate()
-                    .fadeIn(duration: 220.ms, curve: Curves.easeOut, delay: (index * 30).ms)
+                    .fadeIn(
+                      duration: 220.ms,
+                      curve: Curves.easeOut,
+                      delay: (index * 30).ms,
+                    )
                     .slideY(begin: .06, end: 0, duration: 220.ms, curve: Curves.easeOut);
               },
             ),
@@ -131,4 +173,41 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+// ===== Helpers =====
+
+Future<bool?> _confirm(BuildContext context, String title, String message) {
+  return showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('تأكيد')),
+      ],
+    ),
+  );
+}
+
+Future<String?> _promptRename(BuildContext context, String currentName) {
+  final controller = TextEditingController(text: currentName);
+  return showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('إعادة تسمية المجلد'),
+      content: TextField(
+        controller: controller,
+        decoration: const InputDecoration(labelText: 'الاسم الجديد'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, controller.text.trim()),
+          child: const Text('حفظ'),
+        ),
+      ],
+    ),
+  );
 }

@@ -80,4 +80,75 @@ class AppStateNotifier extends StateNotifier<AppState> {
     final updated = [...state.transactions, dummy];
     state = AppState(transactions: updated, folders: state.folders);
   }
+    // ====== Transactions ======
+
+  Future<void> updateTransaction(int key, TransactionModel updated) async {
+    final box = Hive.box<TransactionModel>('transactions');
+    await box.put(key, updated);
+    final refreshed = box.values.toList();
+    state = AppState(transactions: refreshed, folders: state.folders);
+  }
+
+  Future<void> deleteTransactionByKey(int key) async {
+    final box = Hive.box<TransactionModel>('transactions');
+    await box.delete(key);
+    final refreshed = box.values.toList();
+    state = AppState(transactions: refreshed, folders: state.folders);
+  }
+
+  // ====== Folders ======
+
+  /// يحذف المجلد فقط إذا لم يكن يحتوي معاملات ولا مجلدات فرعية.
+  /// يعيد true لو تم الحذف، false لو المجلد غير فارغ.
+  Future<bool> deleteFolderIfEmpty(int folderKey) async {
+    final folderBox = Hive.box<FolderModel>('folders');
+    final folder = state.folders.firstWhere((f) => f.key == folderKey);
+
+    // تحقق من المجلدات الفرعية
+    final hasSubfolders = state.folders.any((f) => f.parentFolderId == folderKey);
+
+    // تحقق من المعاملات المنتمية لهذا المجلد بالاسم
+    final hasTransactions = state.transactions.any((t) => t.folder == folder.name);
+
+    if (hasSubfolders || hasTransactions) return false;
+
+    await folderBox.delete(folderKey);
+    final refreshedFolders = folderBox.values.toList();
+    state = AppState(transactions: state.transactions, folders: refreshedFolders);
+    return true;
+  }
+
+  Future<void> renameFolder(int folderKey, String newName) async {
+    final folderBox = Hive.box<FolderModel>('folders');
+    final folder = state.folders.firstWhere((f) => f.key == folderKey);
+    // ننشئ كائن جديد بنفس parent لكن باسم جديد
+    final updated = FolderModel(name: newName, parentFolderId: folder.parentFolderId);
+    await folderBox.put(folderKey, updated);
+
+    // لو أردت تعكس الاسم الجديد على المعاملات المرتبطة بهذا المجلد:
+    final txBox = Hive.box<TransactionModel>('transactions');
+    final txList = txBox.values.toList();
+    for (var i = 0; i < txList.length; i++) {
+      final tx = txList[i];
+      if (tx.folder == folder.name) {
+        // ننشئ نسخة محدثة باسم المجلد الجديد
+        final newTx = TransactionModel(
+          name: tx.name,
+          amount: tx.amount,
+          isIncome: tx.isIncome,
+          date: tx.date,
+          folder: newName,
+          account: tx.account,
+          notes: tx.notes,
+        );
+        await txBox.put(tx.key as int, newTx);
+      }
+    }
+
+    state = AppState(
+      transactions: txBox.values.toList(),
+      folders: folderBox.values.toList(),
+    );
+  }
+
 }

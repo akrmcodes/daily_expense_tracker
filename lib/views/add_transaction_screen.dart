@@ -8,8 +8,15 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
   final String? folderName;
   final String? accountName;
 
-  const AddTransactionScreen({Key? key, this.folderName, this.accountName})
-    : super(key: key);
+  /// عند تمرير قيمة هنا، تتحول الشاشة إلى "تحرير" بدل "إضافة"
+  final TransactionModel? initial;
+
+  const AddTransactionScreen({
+    Key? key,
+    this.folderName,
+    this.accountName,
+    this.initial,
+  }) : super(key: key);
 
   @override
   ConsumerState<AddTransactionScreen> createState() =>
@@ -26,11 +33,25 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
 
   @override
+  void initState() {
+    super.initState();
+    // تعبئة الحقول في وضع التحرير
+    final init = widget.initial;
+    if (init != null) {
+      _nameController.text = init.name;
+      _amountController.text = init.amount.toString();
+      _noteController.text = init.notes ?? '';
+      _isIncome = init.isIncome;
+      _selectedDate = init.date;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final isEditing = widget.initial != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('إضافة معاملة')),
+      appBar: AppBar(title: Text(isEditing ? 'تعديل معاملة' : 'إضافة معاملة')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -52,8 +73,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   validator: (value) {
                     if (value == null || value.isEmpty) return 'مطلوب';
                     final parsed = double.tryParse(value);
-                    if (parsed == null || parsed <= 0)
+                    if (parsed == null || parsed <= 0) {
                       return 'أدخل رقمًا صالحًا';
+                    }
                     return null;
                   },
                 ),
@@ -88,7 +110,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ✅ استخدم Card تتبع الثيم بدل لون أسود ثابت
+                // التاريخ — نجعلها Card بدون لون ثابت حتى تتبع الثيم
                 Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -104,7 +126,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                ElevatedButton(onPressed: _submit, child: const Text('إضافة')),
+                ElevatedButton(
+                  onPressed: _submit,
+                  child: Text(isEditing ? 'تحديث' : 'إضافة'),
+                ),
               ],
             ),
           ),
@@ -120,7 +145,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       locale: const Locale('ar'),
-      // مافيش builder — الحوارات هتورّث الثيم (فاتح/داكن) تلقائيًا
+      // بدون builder — ليتبع الثيم (فاتح/داكن) تلقائيًا
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
@@ -130,7 +155,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    final transaction = TransactionModel(
+    final newTx = TransactionModel(
       name: _nameController.text.trim(),
       amount: double.parse(_amountController.text),
       isIncome: _isIncome,
@@ -138,14 +163,25 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       notes: _noteController.text.trim().isEmpty
           ? null
           : _noteController.text.trim(),
-      folder: widget.folderName ?? 'Default',
-      account: widget.accountName ?? 'Default',
+      folder: widget.folderName ?? widget.initial?.folder ?? 'Default',
+      account: widget.accountName ?? widget.initial?.account ?? 'Default',
     );
 
-    ref.read(appStateProvider.notifier).addTransaction(transaction);
+    final notifier = ref.read(appStateProvider.notifier);
+
+    if (widget.initial == null) {
+      notifier.addTransaction(newTx);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت إضافة المعاملة بنجاح')),
+      );
+    } else {
+      final key = widget.initial!.key as int;
+      notifier.updateTransaction(key, newTx);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديث المعاملة')),
+      );
+    }
+
     Navigator.pop(context);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('تمت إضافة المعاملة بنجاح')));
   }
 }
