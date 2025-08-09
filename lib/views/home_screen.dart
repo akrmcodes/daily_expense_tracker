@@ -22,12 +22,26 @@ class HomeScreen extends ConsumerWidget {
     final appState = ref.watch(appStateProvider);
 
     // مجلدات المستوى الأعلى فقط
-    final folders = appState.folders.where((f) => f.parentFolderId == null).toList();
+    final folders = appState.folders
+        .where((f) => f.parentFolderId == null)
+        .toList();
     final transactions = appState.transactions;
 
-    final totalIncome = transactions.where((t) => t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
-    final totalExpense = transactions.where((t) => !t.isIncome).fold(0.0, (sum, t) => sum + t.amount);
-    final netBalance = totalIncome - totalExpense; // (محسوب للاستخدام المستقبلي إذا لزم)
+    final totalIncome = transactions
+        .where((t) => t.isIncome)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final totalExpense = transactions
+        .where((t) => !t.isIncome)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final netBalance = totalIncome - totalExpense;
+
+    // 🎨 تلوين ديناميكي للزجاج حسب الرصيد
+    // نستخدم ألوان من ColorScheme لتناسق أعلى مع الثيم:
+    final cs = Theme.of(context).colorScheme;
+    final Color dynamicTint = netBalance >= 0
+        ? cs
+              .tertiary // نغمة إيجابية (عادة تميل للأخضر/سماوي حسب الثيم)
+        : cs.error; // نغمة سلبية (أحمر أنيق من الثيم)
 
     return Scaffold(
       appBar: AppBar(
@@ -39,8 +53,9 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.brightness_6),
             onPressed: () {
               final notifier = ref.read(themeModeProvider.notifier);
-              notifier.state =
-                  notifier.state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+              notifier.state = notifier.state == ThemeMode.dark
+                  ? ThemeMode.light
+                  : ThemeMode.dark;
             },
           ),
         ],
@@ -48,15 +63,43 @@ class HomeScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ GlassPanelCard + BalanceCard
+          // ✅ GlassPanelCard + BalanceCard مع Elevation & Tint ديناميكي
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: GlassPanelCard(
-              child: BalanceCard(
-                income: totalIncome,
-                expense: totalExpense,
-              ),
-            ),
+            child:
+                Container(
+                      // ظل خارجي لطيف يعطي إحساس Elevation
+                      decoration: const BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: 24,
+                            offset: Offset(0, 12),
+                            color: Colors.black26,
+                          ),
+                        ],
+                      ),
+                      child: GlassPanelCard(
+                        tintColor: dynamicTint, // ← تلوين حسب الرصيد
+                        opacity: 0.16, // وضوح بسيط للون داخل الزجاج
+                        blurSigma: 14, // Blur متوازن للأداء/الجمال
+                        borderOpacity: 0.12, // حدود خفيفة
+                        highlightOpacity: 0.07, // هايلايت داخلي ناعم
+                        // showNoise: true,        // فعّلها إذا أضفت asset للـ noise
+                        child: BalanceCard(
+                          income: totalIncome,
+                          expense: totalExpense,
+                        ),
+                      ),
+                    )
+                    // لمسة دخول لطيفة للبطاقة
+                    .animate()
+                    .fadeIn(duration: 260.ms, curve: Curves.easeOut)
+                    .slideY(
+                      begin: .06,
+                      end: 0,
+                      duration: 260.ms,
+                      curve: Curves.easeOut,
+                    ),
           ),
 
           const Padding(
@@ -71,21 +114,32 @@ class HomeScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final folder = folders[index];
                 return ListTile(
-                  leading: const Icon(Icons.folder),
-                  title: Text(folder.name),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      slideFadeRoute(
-                        context: context,
-                        page: FolderDetailsScreen(folderId: folder.key as int),
-                      ),
-                    );
-                  },
-                )
+                      leading: const Icon(Icons.folder),
+                      title: Text(folder.name),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          slideFadeRoute(
+                            context: context,
+                            page: FolderDetailsScreen(
+                              folderId: folder.key as int,
+                            ),
+                          ),
+                        );
+                      },
+                    )
                     .animate()
-                    .fadeIn(duration: 220.ms, curve: Curves.easeOut, delay: (index * 30).ms)
-                    .slideY(begin: .06, end: 0, duration: 220.ms, curve: Curves.easeOut);
+                    .fadeIn(
+                      duration: 220.ms,
+                      curve: Curves.easeOut,
+                      delay: (index * 30).ms,
+                    )
+                    .slideY(
+                      begin: .06,
+                      end: 0,
+                      duration: 220.ms,
+                      curve: Curves.easeOut,
+                    );
               },
             ),
           ),
