@@ -11,6 +11,7 @@ import '../utils/transitions.dart';
 import 'add_account_screen.dart';
 import 'account_details_screen.dart';
 import 'create_folder_screen.dart';
+import '../widgets/folder_tile.dart';
 
 class FolderDetailsScreen extends ConsumerWidget {
   final int folderId;
@@ -83,11 +84,18 @@ class FolderDetailsScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               ...List.generate(subFolders.length, (i) {
                 final sub = subFolders[i];
-                return ListTile(
-                      leading: const Icon(Icons.folder),
-                      title: Text(sub.name),
-                      subtitle: const Text('مجلد فرعي'),
-                      trailing: const Icon(Icons.arrow_forward_ios),
+                // (اختياري) رصيد المجلد الفرعي:
+                final subFolderBalance = appState.transactions
+                    .where((t) => t.folder == sub.name)
+                    .fold<double>(
+                      0.0,
+                      (s, t) => s + (t.isIncome ? t.amount : -t.amount),
+                    );
+
+                return FolderTile(
+                      title: sub.name,
+                      balance: subFolderBalance,
+                      isSubfolder: true,
                       onTap: () {
                         Navigator.push(
                           context,
