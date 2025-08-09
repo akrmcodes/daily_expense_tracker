@@ -4,6 +4,7 @@ import '../providers/app_state_provider.dart';
 import 'create_folder_screen.dart';
 import 'folder_details_screen.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/balance_card.dart';
 
 // إضافات الواجهة الجديدة:
 import '../widgets/app/panel_card.dart';
@@ -51,25 +52,9 @@ class HomeScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ✅ PanelCard من نظام التصميم
-          PanelCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'الإيرادات: +${totalIncome.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.green),
-                ),
-                Text(
-                  'المصروفات: -${totalExpense.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.red),
-                ),
-                const Divider(),
-                Text(
-                  'الرصيد الصافي: ${netBalance.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: BalanceCard(income: totalIncome, expense: totalExpense),
           ),
 
           const Padding(

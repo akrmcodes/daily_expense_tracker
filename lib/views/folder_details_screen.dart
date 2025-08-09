@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_state_provider.dart';
-import '../widgets/balances_card.dart';
+import '../widgets/balance_card.dart';
 import '../widgets/account_list.dart';
 import 'add_account_screen.dart';
 import 'account_details_screen.dart';
