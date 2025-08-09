@@ -8,10 +8,12 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
   final String? folderName;
   final String? accountName;
 
-  const AddTransactionScreen({Key? key, this.folderName, this.accountName}) : super(key: key);
+  const AddTransactionScreen({Key? key, this.folderName, this.accountName})
+    : super(key: key);
 
   @override
-  ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  ConsumerState<AddTransactionScreen> createState() =>
+      _AddTransactionScreenState();
 }
 
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
@@ -21,7 +23,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _noteController = TextEditingController();
 
   bool _isIncome = true;
-  DateTime _selectedDate = DateTime.now(); // ← تأكد إنه هنا
+  DateTime _selectedDate = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
@@ -31,59 +33,80 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(
-            children: [
-              // ... حقول الاسم والمبلغ والملاحظات ...
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<bool>(
-                      value: true,
-                      groupValue: _isIncome,
-                      title: const Text('دخل'),
-                      onChanged: (val) => setState(() => _isIncome = val!),
-                    ),
-                  ),
-                  Expanded(
-                    child: RadioListTile<bool>(
-                      value: false,
-                      groupValue: _isIncome,
-                      title: const Text('مصروف'),
-                      onChanged: (val) => setState(() => _isIncome = val!),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-              // ← هنا تضيف هذا الكود لعرض التاريخ واختيار التاريخ
-              ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: 'اسم المعاملة'),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? 'مطلوب' : null,
                 ),
-                tileColor: Colors.grey[900],
-                leading: const Icon(Icons.calendar_today),
-                title: Text(
-                  'التاريخ: ${DateFormat.yMMMMd('ar').format(_selectedDate)}',
-                  textAlign: TextAlign.right,
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _amountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'المبلغ'),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'مطلوب';
+                    final parsed = double.tryParse(value);
+                    if (parsed == null || parsed <= 0)
+                      return 'أدخل رقمًا صالحًا';
+                    return null;
+                  },
                 ),
-                onTap: _pickDate,
-              ),
-
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _submit,
-                child: const Text('إضافة'),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _noteController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة (اختياري)',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<bool>(
+                        value: true,
+                        groupValue: _isIncome,
+                        title: const Text('دخل'),
+                        onChanged: (val) => setState(() => _isIncome = val!),
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<bool>(
+                        value: false,
+                        groupValue: _isIncome,
+                        title: const Text('مصروف'),
+                        onChanged: (val) => setState(() => _isIncome = val!),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  tileColor: Colors.grey[900],
+                  leading: const Icon(Icons.calendar_today),
+                  title: Text(
+                    'التاريخ: ${DateFormat.yMMMMd('ar').format(_selectedDate)}',
+                    textAlign: TextAlign.right,
+                  ),
+                  onTap: _pickDate,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(onPressed: _submit, child: const Text('إضافة')),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ← وهذه الدالة تحت الـ build مباشرة
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -91,12 +114,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       locale: const Locale('ar'),
-      builder: (context, child) => Theme(
-        data: ThemeData.dark(),
-        child: child!,
-      ),
+      builder: (context, child) => Theme(data: ThemeData.dark(), child: child!),
     );
-
     if (picked != null) {
       setState(() => _selectedDate = picked);
     }
@@ -119,8 +138,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     ref.read(appStateProvider.notifier).addTransaction(transaction);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تمت إضافة المعاملة بنجاح')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تمت إضافة المعاملة بنجاح')));
   }
 }
