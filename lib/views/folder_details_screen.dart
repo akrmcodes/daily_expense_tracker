@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../providers/app_state_provider.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/account_list.dart';
+import '../widgets/app/glass_panel_card.dart';
+import '../widgets/app/section_title.dart';
+import '../utils/transitions.dart';
 import 'add_account_screen.dart';
 import 'account_details_screen.dart';
 import 'create_folder_screen.dart';
-import 'folder_details_screen.dart'; // ✅ مهم لاستدعاء نفس الشاشة عند الدخول لمجلد فرعي
-import '../utils/transitions.dart';
+import '../widgets/folder_tile.dart';
 
 class FolderDetailsScreen extends ConsumerWidget {
   final int folderId;
@@ -19,17 +23,30 @@ class FolderDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appStateProvider);
 
+    // المجلد الحالي
     final folder = appState.folders.firstWhere((f) => f.key == folderId);
     final folderName = folder.name;
 
+    // معاملات هذا المجلد
     final folderTransactions = appState.transactions
         .where((t) => t.folder == folderName)
         .toList();
 
-    // ✅ جلب المجلدات الفرعية
+    // المجلدات الفرعية
     final subFolders = appState.folders
         .where((f) => f.parentFolderId == folderId)
         .toList();
+
+    // تلوين ديناميكي للزجاج حسب صافي رصيد المجلد
+    final totalIncome = folderTransactions
+        .where((t) => t.isIncome)
+        .fold(0.0, (s, t) => s + t.amount);
+    final totalExpense = folderTransactions
+        .where((t) => !t.isIncome)
+        .fold(0.0, (s, t) => s + t.amount);
+    final net = totalIncome - totalExpense;
+    final cs = Theme.of(context).colorScheme;
+    final Color dynamicTint = net >= 0 ? cs.tertiary : cs.error;
 
     return Scaffold(
       appBar: AppBar(title: Text(folderName), centerTitle: true),
@@ -38,63 +55,100 @@ class FolderDetailsScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            BalanceCard(transactions: folderTransactions),
+            // Glass + Balance
+            GlassPanelCard(
+                  tintColor: dynamicTint,
+                  opacity: 0.16,
+                  blurSigma: 14,
+                  borderOpacity: 0.12,
+                  highlightOpacity: 0.07,
+                  child: BalanceCard(
+                    income: totalIncome,
+                    expense: totalExpense,
+                  ),
+                )
+                .animate()
+                .fadeIn(duration: 260.ms, curve: Curves.easeOut)
+                .slideY(
+                  begin: .06,
+                  end: 0,
+                  duration: 260.ms,
+                  curve: Curves.easeOut,
+                ),
 
-            // ✅ عرض المجلدات الفرعية إذا كانت موجودة
+            const SizedBox(height: 12),
+
+            // المجلدات الفرعية (إن وجدت)
             if (subFolders.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Text(
-                'المجلدات الفرعية',
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 10),
-              ...subFolders.map((subFolder) {
-                return Card(
-                  color: Colors.grey[900],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    title: Text(subFolder.name),
-                    subtitle: const Text('مجلد فرعي'),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => FolderDetailsScreen(
-                            folderId: subFolder.key as int,
+              const SectionTitle('المجلدات الفرعية'),
+              const SizedBox(height: 8),
+              ...List.generate(subFolders.length, (i) {
+                final sub = subFolders[i];
+                // (اختياري) رصيد المجلد الفرعي:
+                final subFolderBalance = appState.transactions
+                    .where((t) => t.folder == sub.name)
+                    .fold<double>(
+                      0.0,
+                      (s, t) => s + (t.isIncome ? t.amount : -t.amount),
+                    );
+
+                return FolderTile(
+                      title: sub.name,
+                      balance: subFolderBalance,
+                      isSubfolder: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          slideFadeRoute(
+                            context: context,
+                            page: FolderDetailsScreen(folderId: sub.key as int),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              }).toList(),
+                        );
+                      },
+                    )
+                    .animate()
+                    .fadeIn(
+                      duration: 220.ms,
+                      curve: Curves.easeOut,
+                      delay: (i * 24).ms,
+                    )
+                    .slideY(
+                      begin: .05,
+                      end: 0,
+                      duration: 220.ms,
+                      curve: Curves.easeOut,
+                    );
+              }),
+              const SizedBox(height: 16),
             ],
 
-            const SizedBox(height: 24),
-            Text(
-              'الحسابات في هذا المجلد',
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 10),
+            const SectionTitle('الحسابات في هذا المجلد'),
+            const SizedBox(height: 8),
+
+            // قائمة الحسابات
             AccountList(
-              transactions: folderTransactions,
-              folderName: folderName,
-              onAccountTap: (accountName) {
-                Navigator.of(context).push(
-                  slideFadeRoute(
-                    context: context,
-                    page: AccountDetailsScreen(
-                      folderName: folderName,
-                      accountName: accountName,
-                    ),
-                  ),
-                );
-              },
-            ),
+                  transactions: folderTransactions,
+                  folderName: folderName,
+                  onAccountTap: (accountName) {
+                    Navigator.of(context).push(
+                      slideFadeRoute(
+                        context: context,
+                        page: AccountDetailsScreen(
+                          folderName: folderName,
+                          accountName: accountName,
+                        ),
+                      ),
+                    );
+                  },
+                )
+                .animate()
+                .fadeIn(duration: 220.ms, curve: Curves.easeOut)
+                .slideY(
+                  begin: .04,
+                  end: 0,
+                  duration: 220.ms,
+                  curve: Curves.easeOut,
+                ),
           ],
         ),
       ),
