@@ -150,5 +150,114 @@ class AppStateNotifier extends StateNotifier<AppState> {
       folders: folderBox.values.toList(),
     );
   }
+  
+    // ====== Folders: حذف شامل (Cascade) ======
+  Future<void> deleteFolderCascade(int folderKey) async {
+    final folderBox = Hive.box<FolderModel>('folders');
+    final txBox = Hive.box<TransactionModel>('transactions');
+
+    final folder = state.folders.firstWhere((f) => f.key == folderKey);
+
+    // 1) حذف معاملات هذا المجلد
+    final txKeysToDelete = state.transactions
+        .where((t) => t.folder == folder.name)
+        .map((t) => t.key as int)
+        .toList();
+    if (txKeysToDelete.isNotEmpty) {
+      await txBox.deleteAll(txKeysToDelete);
+    }
+
+    // 2) حذف المجلدات الفرعية بشكل recursive
+    final subfolders = state.folders
+        .where((f) => f.parentFolderId == folderKey)
+        .toList();
+    for (final sub in subfolders) {
+      await deleteFolderCascade(sub.key as int);
+    }
+
+    // 3) حذف المجلد نفسه
+    await folderBox.delete(folderKey);
+
+    // 4) تحديث الحالة
+    state = AppState(
+      transactions: txBox.values.toList(),
+      folders: folderBox.values.toList(),
+    );
+  }
+
+  // ====== Accounts: عمليات على مستوى الحساب (غير مخزَّن ككيان مستقل) ======
+
+  bool isAccountEmpty(String folderName, String accountName) {
+    return !state.transactions.any(
+      (t) => t.folder == folderName && t.account == accountName,
+    );
+  }
+
+  Future<bool> deleteAccountIfEmpty(String folderName, String accountName) async {
+    final txBox = Hive.box<TransactionModel>('transactions');
+
+    // إذا كان فارغ فعلاً، ممكن يكون فيه dummy قديم وقت إنشاء الحساب — نحذفه إن وجد
+    final dummies = state.transactions
+        .where((t) =>
+            t.folder == folderName &&
+            t.account == accountName &&
+            t.amount == 0 &&
+            (t.notes ?? '').contains('تم إنشاء الحساب'))
+        .map((t) => t.key as int)
+        .toList();
+
+    if (dummies.isNotEmpty) {
+      await txBox.deleteAll(dummies);
+    }
+
+    state = AppState(
+      transactions: txBox.values.toList(),
+      folders: state.folders,
+    );
+    return true;
+  }
+
+  Future<void> deleteAccountCascade(String folderName, String accountName) async {
+    final txBox = Hive.box<TransactionModel>('transactions');
+    final keys = state.transactions
+        .where((t) => t.folder == folderName && t.account == accountName)
+        .map((t) => t.key as int)
+        .toList();
+
+    if (keys.isNotEmpty) {
+      await txBox.deleteAll(keys);
+    }
+
+    state = AppState(
+      transactions: txBox.values.toList(),
+      folders: state.folders,
+    );
+  }
+
+  Future<void> renameAccount(
+      String folderName, String oldAccountName, String newAccountName) async {
+    final txBox = Hive.box<TransactionModel>('transactions');
+
+    for (final tx in txBox.values) {
+      if (tx.folder == folderName && tx.account == oldAccountName) {
+        final newTx = TransactionModel(
+          name: tx.name,
+          amount: tx.amount,
+          isIncome: tx.isIncome,
+          date: tx.date,
+          folder: tx.folder,
+          account: newAccountName,
+          notes: tx.notes,
+        );
+        await txBox.put(tx.key as int, newTx);
+      }
+    }
+
+    state = AppState(
+      transactions: txBox.values.toList(),
+      folders: state.folders,
+    );
+  }
+
 
 }
