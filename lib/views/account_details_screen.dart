@@ -9,6 +9,7 @@ import '../widgets/balance_card.dart';
 import '../widgets/app/glass_panel_card.dart';
 import '../widgets/app/section_title.dart';
 import '../utils/transitions.dart';
+import '../utils/snack.dart'; // ← استخدم أداة السناك بار الموحدة
 import 'add_transaction_screen.dart';
 
 class AccountDetailsScreen extends ConsumerWidget {
@@ -153,22 +154,11 @@ class AccountDetailsScreen extends ConsumerWidget {
                                   await notifier.deleteTransactionByKey(
                                     tx.key as int,
                                   );
-
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text('تم حذف المعاملة'),
-                                        action: SnackBarAction(
-                                          label: 'تراجع',
-                                          onPressed: () {
-                                            notifier.addTransaction(
-                                              deletedTx,
-                                            ); // addTransaction ترجع void
-                                          },
-                                        ),
-                                      ),
-                                    );
-                                  }
+                                  // سناك بار موحدة (3 ثواني + تراجع)
+                                  AppSnack.undoable(
+                                    'تم حذف المعاملة',
+                                    () => notifier.addTransaction(deletedTx),
+                                  );
                                   return true;
                                 },
                                 child:
@@ -201,7 +191,6 @@ class AccountDetailsScreen extends ConsumerWidget {
                                             );
                                           },
                                           onDelete: () async {
-                                            // تأكيد الحذف من القائمة ⋮
                                             final ok = await showDialog<bool>(
                                               context: context,
                                               builder: (ctx) => AlertDialog(
@@ -231,31 +220,20 @@ class AccountDetailsScreen extends ConsumerWidget {
                                                 ],
                                               ),
                                             );
+
                                             if (ok == true) {
                                               final deletedTx = tx;
                                               await notifier
                                                   .deleteTransactionByKey(
                                                     tx.key as int,
                                                   );
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: const Text(
-                                                      'تم حذف المعاملة',
-                                                    ),
-                                                    action: SnackBarAction(
-                                                      label: 'تراجع',
-                                                      onPressed: () {
-                                                        notifier.addTransaction(
-                                                          deletedTx,
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                                );
-                                              }
+                                              // سناك بار موحدة (3 ثواني + تراجع)
+                                              AppSnack.undoable(
+                                                'تم حذف المعاملة',
+                                                () => notifier.addTransaction(
+                                                  deletedTx,
+                                                ),
+                                              );
                                             }
                                           },
                                         )
