@@ -7,10 +7,14 @@ class TransactionCard extends StatelessWidget {
   /// الرصيد بعد تنفيذ هذه العملية
   final double runningBalanceAfter;
 
+  /// ← جديد: نجعل البطاقة تقبل onTap من الخارج
+  final VoidCallback? onTap;
+
   const TransactionCard({
     Key? key,
     required this.transaction,
     required this.runningBalanceAfter,
+    this.onTap,
   }) : super(key: key);
 
   @override
@@ -30,7 +34,7 @@ class TransactionCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () {}, // متروكة للمستقبل (تفاصيل/تحرير)
+        onTap: onTap, // ← نستخدم الكولباك القادم من الخارج
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),

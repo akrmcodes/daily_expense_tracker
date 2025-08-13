@@ -161,8 +161,9 @@ class AccountDetailsScreen extends ConsumerWidget {
                                         action: SnackBarAction(
                                           label: 'تراجع',
                                           onPressed: () {
-                                            // ✅ addTransaction ترجع void — لا نستخدم await
-                                            notifier.addTransaction(deletedTx);
+                                            notifier.addTransaction(
+                                              deletedTx,
+                                            ); // لا تنتظر await (ترجع void)
                                           },
                                         ),
                                       ),
@@ -174,6 +175,17 @@ class AccountDetailsScreen extends ConsumerWidget {
                                     TransactionCard(
                                           transaction: tx,
                                           runningBalanceAfter: row.runningAfter,
+                                          onTap: () {
+                                            Navigator.of(context).push(
+                                              slideFadeRoute(
+                                                context: context,
+                                                page: AddTransactionScreen(
+                                                  initialTransaction: tx,
+                                                  txKey: tx.key as int,
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         )
                                         .animate()
                                         .fadeIn(

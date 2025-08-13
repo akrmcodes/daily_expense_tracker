@@ -1,22 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../models/transaction_model.dart';
 import '../providers/app_state_provider.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
+  /// لو نمرر معاملة + مفتاحها → الشاشة تعمل كنمط "تحرير"
+  final TransactionModel? initialTransaction;
+  final int? txKey;
+
+  /// في وضع الإضافة فقط: نحتاج معرفة المجلد/الحساب
   final String? folderName;
   final String? accountName;
 
-  /// عند تمرير قيمة هنا، تتحول الشاشة إلى "تحرير" بدل "إضافة"
-  final TransactionModel? initial;
-
   const AddTransactionScreen({
     Key? key,
+    this.initialTransaction,
+    this.txKey,
     this.folderName,
     this.accountName,
-    this.initial,
   }) : super(key: key);
+
+  bool get isEdit => initialTransaction != null && txKey != null;
 
   @override
   ConsumerState<AddTransactionScreen> createState() =>
@@ -35,23 +41,35 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
-    // تعبئة الحقول في وضع التحرير
-    final init = widget.initial;
-    if (init != null) {
-      _nameController.text = init.name;
-      _amountController.text = init.amount.toString();
-      _noteController.text = init.notes ?? '';
-      _isIncome = init.isIncome;
-      _selectedDate = init.date;
+    // تهيئة الحقول لو كنا في وضع التحرير:
+    final tx = widget.initialTransaction;
+    if (tx != null) {
+      _nameController.text = tx.name;
+      _amountController.text = tx.amount.toString();
+      _noteController.text = tx.notes ?? '';
+      _isIncome = tx.isIncome;
+      _selectedDate = tx.date;
     }
   }
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isEditing = widget.initial != null;
+    final isEdit = widget.isEdit;
+    final effectiveFolder = widget.initialTransaction?.folder ?? widget.folderName ?? 'Default';
+    final effectiveAccount = widget.initialTransaction?.account ?? widget.accountName ?? 'Default';
 
     return Scaffold(
-      appBar: AppBar(title: Text(isEditing ? 'تعديل معاملة' : 'إضافة معاملة')),
+      appBar: AppBar(
+        title: Text(isEdit ? 'تعديل المعاملة' : 'إضافة معاملة'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -66,6 +84,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       value == null || value.trim().isEmpty ? 'مطلوب' : null,
                 ),
                 const SizedBox(height: 12),
+
                 TextFormField(
                   controller: _amountController,
                   keyboardType: TextInputType.number,
@@ -80,6 +99,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
+
                 TextFormField(
                   controller: _noteController,
                   maxLines: 2,
@@ -88,6 +108,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
                 Row(
                   children: [
                     Expanded(
@@ -108,27 +129,41 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 12),
 
-                // التاريخ — نجعلها Card بدون لون ثابت حتى تتبع الثيم
-                Card(
+                // اختيار التاريخ — يستخدم ثيم التطبيق تلقائيًا
+                ListTile(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: ListTile(
-                    leading: const Icon(Icons.calendar_today),
-                    title: Text(
-                      'التاريخ: ${DateFormat.yMMMMd('ar').format(_selectedDate)}',
-                      textAlign: TextAlign.right,
-                    ),
-                    onTap: _pickDate,
+                  tileColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.20),
+                  leading: const Icon(Icons.calendar_today),
+                  title: Text(
+                    'التاريخ: ${DateFormat.yMMMMd('ar').format(_selectedDate)}',
+                    textAlign: TextAlign.right,
                   ),
+                  onTap: _pickDate,
                 ),
 
                 const SizedBox(height: 20),
+
+                // ملاحظة بسيطة تعرض مكان الحفظ (اسم المجلد/الحساب)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Opacity(
+                    opacity: .7,
+                    child: Text(
+                      'سيتم ${isEdit ? 'تحديث' : 'حفظ'} العملية في: $effectiveFolder / $effectiveAccount',
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 ElevatedButton(
-                  onPressed: _submit,
-                  child: Text(isEditing ? 'تحديث' : 'إضافة'),
+                  onPressed: () => _submit(effectiveFolder, effectiveAccount),
+                  child: Text(isEdit ? 'حفظ التعديلات' : 'إضافة'),
                 ),
               ],
             ),
@@ -145,43 +180,46 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       locale: const Locale('ar'),
-      // بدون builder — ليتبع الثيم (فاتح/داكن) تلقائيًا
+      // لا نمرر ThemeData يدويًا — يستخدم ثيم التطبيق (فاتح/داكن) تلقائيًا
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
     }
   }
 
-  void _submit() {
+  void _submit(String folderName, String accountName) async {
     if (!_formKey.currentState!.validate()) return;
 
-    final newTx = TransactionModel(
+    final model = TransactionModel(
       name: _nameController.text.trim(),
       amount: double.parse(_amountController.text),
       isIncome: _isIncome,
       date: _selectedDate,
-      notes: _noteController.text.trim().isEmpty
-          ? null
-          : _noteController.text.trim(),
-      folder: widget.folderName ?? widget.initial?.folder ?? 'Default',
-      account: widget.accountName ?? widget.initial?.account ?? 'Default',
+      notes: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+      folder: folderName,
+      account: accountName,
     );
 
     final notifier = ref.read(appStateProvider.notifier);
 
-    if (widget.initial == null) {
-      notifier.addTransaction(newTx);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت إضافة المعاملة بنجاح')),
-      );
+    if (widget.isEdit) {
+      // تحديث
+      await notifier.updateTransaction(widget.txKey as int, model);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حفظ التعديلات')),
+        );
+      }
     } else {
-      final key = widget.initial!.key as int;
-      notifier.updateTransaction(key, newTx);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم تحديث المعاملة')),
-      );
+      // إضافة جديدة
+      notifier.addTransaction(model); // ترجع void — بدون await
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إضافة المعاملة بنجاح')),
+        );
+      }
     }
-
-    Navigator.pop(context);
   }
 }
