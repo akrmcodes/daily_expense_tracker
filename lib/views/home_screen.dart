@@ -12,6 +12,8 @@ import '../widgets/app/glass_panel_card.dart';
 import '../widgets/folder_tile.dart';
 import 'create_folder_screen.dart';
 import 'folder_details_screen.dart';
+import './settings_screen.dart';
+import '../providers/prefs_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -42,15 +44,28 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('الرئيسية'),
         centerTitle: true,
+        // داخل AppBar(actions:) في HomeScreen
         actions: [
+          IconButton(
+            tooltip: 'الإعدادات',
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'تبديل الثيم',
             icon: const Icon(Icons.brightness_6),
             onPressed: () {
-              final notifier = ref.read(themeModeProvider.notifier);
-              notifier.state = notifier.state == ThemeMode.dark
+              final prefsN = ref.read(prefsProvider.notifier);
+              final current = ref.read(prefsProvider).themeMode;
+              final next = current == ThemeMode.dark
                   ? ThemeMode.light
                   : ThemeMode.dark;
+              prefsN.setThemeMode(next); // 👈 يحدّث Hive ويعيد البناء
             },
           ),
         ],
