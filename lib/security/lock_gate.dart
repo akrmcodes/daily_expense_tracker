@@ -1,0 +1,63 @@
+// lib/services/lock_gate.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/prefs_provider.dart';
+import 'lock_service.dart';
+
+/// غلاف يفرض القفل عند الإقلاع وأيضًا عند الرجوع من الخلفية
+class LockGate extends ConsumerStatefulWidget {
+  final Widget child;
+  const LockGate({Key? key, required this.child}) : super(key: key);
+
+  @override
+  ConsumerState<LockGate> createState() => _LockGateState();
+}
+
+class _LockGateState extends ConsumerState<LockGate>
+    with WidgetsBindingObserver {
+  bool _initializing = true; // لعرض دائرة التحميل فقط في أول مرة
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // نفّذ فحص القفل بعد أول frame حتى يكون الـ context صالح للملاحة
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _maybeLock(initial: true);
+      if (mounted) setState(() => _initializing = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// يُنفّذ فحص القفل إن كان مفعّلاً في الإعدادات
+  Future<void> _maybeLock({bool initial = false}) async {
+    final prefs = ref.read(prefsProvider);
+    if (!prefs.appLockEnabled) return;
+
+    // نطلب فتح القفل. شاشة القفل/البيومتري تُدار داخل LockService.
+    await ref.read(lockServiceProvider).requireUnlock(context);
+  }
+
+  /// عند الرجوع من الخلفية نطلب القفل (سيأخذ LockService بزمام الأمور)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _maybeLock();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_initializing) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return widget.child;
+  }
+}

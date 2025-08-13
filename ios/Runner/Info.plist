@@ -45,5 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- تصريح Face ID -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>نحتاج لاستخدام Face ID لقفل التطبيق</string>
+
 </dict>
 </plist>
