@@ -9,6 +9,8 @@ import 'models/folder_model.dart';
 import 'views/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/theme_provider.dart'; // ✅ جديد
+import 'app_globals.dart'; // ← أضِف هذا الاستيراد
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +48,8 @@ class MyApp extends ConsumerWidget { // ✅ تغيّرت من Stateless إلى C
       themeMode: themeMode, // ✅ تطبيق وضع الثيم من المزود
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
+      scaffoldMessengerKey: AppGlobals.scaffoldMessengerKey, // ← سطر مهم جداً
+
     );
   }
 }

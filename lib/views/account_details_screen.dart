@@ -9,6 +9,7 @@ import '../widgets/balance_card.dart';
 import '../widgets/app/glass_panel_card.dart';
 import '../widgets/app/section_title.dart';
 import '../utils/transitions.dart';
+import '../utils/snack.dart'; // ← استخدم أداة السناك بار الموحدة
 import 'add_transaction_screen.dart';
 
 class AccountDetailsScreen extends ConsumerWidget {
@@ -153,27 +154,88 @@ class AccountDetailsScreen extends ConsumerWidget {
                                   await notifier.deleteTransactionByKey(
                                     tx.key as int,
                                   );
-
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text('تم حذف المعاملة'),
-                                        action: SnackBarAction(
-                                          label: 'تراجع',
-                                          onPressed: () {
-                                            // ✅ addTransaction ترجع void — لا نستخدم await
-                                            notifier.addTransaction(deletedTx);
-                                          },
-                                        ),
-                                      ),
-                                    );
-                                  }
+                                  // سناك بار موحدة (3 ثواني + تراجع)
+                                  AppSnack.undoable(
+                                    'تم حذف المعاملة',
+                                    () => notifier.addTransaction(deletedTx),
+                                  );
                                   return true;
                                 },
                                 child:
                                     TransactionCard(
                                           transaction: tx,
                                           runningBalanceAfter: row.runningAfter,
+                                          onTap: () {
+                                            // فتح التحرير بالضغط على البطاقة
+                                            Navigator.of(context).push(
+                                              slideFadeRoute(
+                                                context: context,
+                                                page: AddTransactionScreen(
+                                                  initialTransaction: tx,
+                                                  txKey: tx.key as int,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          showMenu: true,
+                                          onEdit: () {
+                                            // نفس التحرير لكن من القائمة ⋮
+                                            Navigator.of(context).push(
+                                              slideFadeRoute(
+                                                context: context,
+                                                page: AddTransactionScreen(
+                                                  initialTransaction: tx,
+                                                  txKey: tx.key as int,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          onDelete: () async {
+                                            final ok = await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text(
+                                                  'حذف المعاملة',
+                                                ),
+                                                content: const Text(
+                                                  'هل أنت متأكد من حذف هذه المعاملة؟',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          ctx,
+                                                          false,
+                                                        ),
+                                                    child: const Text('إلغاء'),
+                                                  ),
+                                                  FilledButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          ctx,
+                                                          true,
+                                                        ),
+                                                    child: const Text('حذف'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+
+                                            if (ok == true) {
+                                              final deletedTx = tx;
+                                              await notifier
+                                                  .deleteTransactionByKey(
+                                                    tx.key as int,
+                                                  );
+                                              // سناك بار موحدة (3 ثواني + تراجع)
+                                              AppSnack.undoable(
+                                                'تم حذف المعاملة',
+                                                () => notifier.addTransaction(
+                                                  deletedTx,
+                                                ),
+                                              );
+                                            }
+                                          },
                                         )
                                         .animate()
                                         .fadeIn(
