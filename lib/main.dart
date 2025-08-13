@@ -1,3 +1,4 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,32 +9,41 @@ import 'models/transaction_model.dart';
 import 'models/folder_model.dart';
 import 'views/home_screen.dart';
 import 'theme/app_theme.dart';
-import 'providers/theme_provider.dart'; // ✅ جديد
-import 'app_globals.dart'; // ← أضِف هذا الاستيراد
-
+import 'app_globals.dart';
+import 'providers/prefs_provider.dart'; // 👈 مهم
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة Hive
   await Hive.initFlutter();
   Hive.registerAdapter(TransactionModelAdapter());
   await Hive.openBox<TransactionModel>('transactions');
   Hive.registerAdapter(FolderModelAdapter());
   await Hive.openBox<FolderModel>('folders');
 
-  // تهيئة بيانات اللغة العربية
   await initializeDateFormatting('ar');
 
-  runApp(const ProviderScope(child: MyApp()));
+  // 👇 أنشئ الـ PrefsNotifier و نفّذ init ثم مرّره كـ override
+  final prefsNotifier = PrefsNotifier();
+  await prefsNotifier.init();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        // Riverpod v2: نستخدم overrideWith
+        prefsProvider.overrideWith((ref) => prefsNotifier),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends ConsumerWidget { // ✅ تغيّرت من Stateless إلى ConsumerWidget
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider); // ✅ قراءة حالة الثيم
+    final prefs = ref.watch(prefsProvider); // 👈 اقرأ الثيم من prefs
 
     return MaterialApp(
       locale: const Locale('ar'),
@@ -45,11 +55,10 @@ class MyApp extends ConsumerWidget { // ✅ تغيّرت من Stateless إلى C
       ],
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: themeMode, // ✅ تطبيق وضع الثيم من المزود
+      themeMode: prefs.themeMode, // 👈 هذا يحل مشكلة عدم تغيّر الوضع
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
-      scaffoldMessengerKey: AppGlobals.scaffoldMessengerKey, // ← سطر مهم جداً
-
+      scaffoldMessengerKey: AppGlobals.scaffoldMessengerKey,
     );
   }
 }
