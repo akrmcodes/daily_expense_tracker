@@ -7,14 +7,24 @@ class TransactionCard extends StatelessWidget {
   /// الرصيد بعد تنفيذ هذه العملية
   final double runningBalanceAfter;
 
-  /// ← جديد: نجعل البطاقة تقبل onTap من الخارج
+  /// يفتح شاشة التفاصيل/التحرير عند الضغط على البطاقة
   final VoidCallback? onTap;
+
+  /// إظهار زر القائمة ⋮ من عدمه
+  final bool showMenu;
+
+  /// استدعاءات القائمة
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const TransactionCard({
     Key? key,
     required this.transaction,
     required this.runningBalanceAfter,
     this.onTap,
+    this.showMenu = false,
+    this.onEdit,
+    this.onDelete,
   }) : super(key: key);
 
   @override
@@ -34,16 +44,16 @@ class TransactionCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap, // ← نستخدم الكولباك القادم من الخارج
+        onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            // Tint خفيف يحافظ على قابلية القراءة في الفاتح والداكن
             color: Color.alphaBlend(tileTint, cs.surface),
             border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // أيقونة النوع
               Container(
@@ -61,32 +71,35 @@ class TransactionCard extends StatelessWidget {
 
               const SizedBox(width: 12),
 
-              // نصوص: الاسم + التاريخ + الملاحظة + الرصيد بعد العملية
+              // النصوص (اسم + تاريخ + ملاحظة + رصيد)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // الاسم + التاريخ في سطر واحد عند الإمكان
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            t.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                    // الاسم (سطرين كحد أقصى) + Tooltip يظهر الاسم كامل بالضغط المطوّل
+                    Tooltip(
+                      message: t.name,
+                      preferBelow: false,
+                      child: Text(
+                        t.name,
+                        maxLines: 2,           // ← بدلاً من 1
+                        softWrap: true,        // ← يسمح بالالتفاف
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.start,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // التاريخ تحت الاسم بخط صغير
+                    Text(
+                      DateFormat.yMMMd('ar').format(t.date),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          DateFormat.yMMMd('ar').format(t.date),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
                     ),
 
                     const SizedBox(height: 6),
@@ -121,21 +134,63 @@ class TransactionCard extends StatelessWidget {
 
               const SizedBox(width: 12),
 
-              // مبلغ العملية كبادج صغير
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: chipBg,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: accent.withOpacity(0.35)),
-                ),
-                child: Text(
-                  "${income ? '+' : '-'}${t.amount.toStringAsFixed(2)}",
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: accent,
-                        fontWeight: FontWeight.w800,
+              // مبلغ العملية + قائمة ⋮ اختيارية
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: chipBg,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: accent.withOpacity(0.35)),
+                        ),
+                        child: Text(
+                          "${income ? '+' : '-'}${t.amount.toStringAsFixed(2)}",
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
                       ),
-                ),
+                      if (showMenu) ...[
+                        const SizedBox(width: 4),
+                        PopupMenuButton<_TxMenuAction>(
+                          tooltip: 'خيارات',
+                          onSelected: (value) {
+                            switch (value) {
+                              case _TxMenuAction.edit:
+                                if (onEdit != null) onEdit!();
+                                break;
+                              case _TxMenuAction.delete:
+                                if (onDelete != null) onDelete!();
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: _TxMenuAction.edit,
+                              child: ListTile(
+                                leading: Icon(Icons.edit),
+                                title: Text('تعديل'),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: _TxMenuAction.delete,
+                              child: ListTile(
+                                leading: Icon(Icons.delete_outline),
+                                title: Text('حذف'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -144,3 +199,5 @@ class TransactionCard extends StatelessWidget {
     );
   }
 }
+
+enum _TxMenuAction { edit, delete }

@@ -163,7 +163,7 @@ class AccountDetailsScreen extends ConsumerWidget {
                                           onPressed: () {
                                             notifier.addTransaction(
                                               deletedTx,
-                                            ); // لا تنتظر await (ترجع void)
+                                            ); // addTransaction ترجع void
                                           },
                                         ),
                                       ),
@@ -176,6 +176,7 @@ class AccountDetailsScreen extends ConsumerWidget {
                                           transaction: tx,
                                           runningBalanceAfter: row.runningAfter,
                                           onTap: () {
+                                            // فتح التحرير بالضغط على البطاقة
                                             Navigator.of(context).push(
                                               slideFadeRoute(
                                                 context: context,
@@ -185,6 +186,77 @@ class AccountDetailsScreen extends ConsumerWidget {
                                                 ),
                                               ),
                                             );
+                                          },
+                                          showMenu: true,
+                                          onEdit: () {
+                                            // نفس التحرير لكن من القائمة ⋮
+                                            Navigator.of(context).push(
+                                              slideFadeRoute(
+                                                context: context,
+                                                page: AddTransactionScreen(
+                                                  initialTransaction: tx,
+                                                  txKey: tx.key as int,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          onDelete: () async {
+                                            // تأكيد الحذف من القائمة ⋮
+                                            final ok = await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text(
+                                                  'حذف المعاملة',
+                                                ),
+                                                content: const Text(
+                                                  'هل أنت متأكد من حذف هذه المعاملة؟',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          ctx,
+                                                          false,
+                                                        ),
+                                                    child: const Text('إلغاء'),
+                                                  ),
+                                                  FilledButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          ctx,
+                                                          true,
+                                                        ),
+                                                    child: const Text('حذف'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                            if (ok == true) {
+                                              final deletedTx = tx;
+                                              await notifier
+                                                  .deleteTransactionByKey(
+                                                    tx.key as int,
+                                                  );
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: const Text(
+                                                      'تم حذف المعاملة',
+                                                    ),
+                                                    action: SnackBarAction(
+                                                      label: 'تراجع',
+                                                      onPressed: () {
+                                                        notifier.addTransaction(
+                                                          deletedTx,
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            }
                                           },
                                         )
                                         .animate()
