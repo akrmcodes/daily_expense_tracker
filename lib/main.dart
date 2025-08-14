@@ -11,12 +11,10 @@ import 'views/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'app_globals.dart';
 
-import 'providers/prefs_provider.dart';           // ✅ جديد: نقرأ الثيم من هنا
-import './security/lock_service.dart';              // ✅ جديد: لاستخدام القفل
+import 'providers/prefs_provider.dart';
+import './security/lock_gate.dart'; // ✅ غلاف القفل
 
-final navigatorKey = GlobalKey<NavigatorState>(); // ✅ لو لم يكن موجوداً
-
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Hive.initFlutter();
@@ -37,56 +35,32 @@ class MyApp extends ConsumerStatefulWidget {
   ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
-  DateTime? _lastPaused;
+class _MyAppState extends ConsumerState<MyApp> {
+  bool _prefsReady = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
-    // تأكد تهيئة تفضيلات المستخدم
+    // تهيئة تفضيلات المستخدم قبل البناء (مرة واحدة)
     Future.microtask(() async {
       await ref.read(prefsProvider.notifier).init();
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _prefsReady = true);
     });
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    super.didChangeAppLifecycleState(state);
-
-    final prefs = ref.read(prefsProvider);
-    if (!prefs.appLockEnabled) return;
-
-    if (state == AppLifecycleState.paused) {
-      _lastPaused = DateTime.now();
-    }
-
-    if (state == AppLifecycleState.resumed && _lastPaused != null) {
-      final diff = DateTime.now().difference(_lastPaused!);
-      final needLock = diff.inSeconds >= prefs.lockAfterSec;
-      if (needLock) {
-        final ctx = navigatorKey.currentContext;
-        if (ctx != null) {
-          final ok = await ref.read(lockServiceProvider).requireUnlock(ctx);
-          // لو فشل، شاشة القفل ستظل معروضة حتى النجاح؛ لا حاجة لعمل إضافي هنا
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final prefs = ref.watch(prefsProvider); // ✅ نقرأ الثيم من prefs
+    final prefs = ref.watch(prefsProvider);
+
+    // لو حاب تعرض دائرة تحميل أثناء التهيئة الأولى
+    if (!_prefsReady) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
+
     return MaterialApp(
-      navigatorKey: navigatorKey,
       locale: const Locale('ar'),
       supportedLocales: const [Locale('ar'), Locale('en')],
       localizationsDelegates: const [
@@ -96,10 +70,11 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       ],
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: prefs.themeMode, // ✅ بدل themeModeProvider
+      themeMode: prefs.themeMode,
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
       scaffoldMessengerKey: AppGlobals.scaffoldMessengerKey,
+      // ✅ اجعل LockGate هو الغلاف الوحيد المسؤول عن القفل
+      home: const LockGate(child: HomeScreen()),
     );
   }
 }

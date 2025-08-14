@@ -13,9 +13,8 @@ class LockGate extends ConsumerStatefulWidget {
   ConsumerState<LockGate> createState() => _LockGateState();
 }
 
-class _LockGateState extends ConsumerState<LockGate>
-    with WidgetsBindingObserver {
-  bool _initializing = true; // لعرض دائرة التحميل فقط في أول مرة
+class _LockGateState extends ConsumerState<LockGate> with WidgetsBindingObserver {
+  bool _initializing = true;
 
   @override
   void initState() {
@@ -35,16 +34,13 @@ class _LockGateState extends ConsumerState<LockGate>
     super.dispose();
   }
 
-  /// يُنفّذ فحص القفل إن كان مفعّلاً في الإعدادات
   Future<void> _maybeLock({bool initial = false}) async {
     final prefs = ref.read(prefsProvider);
     if (!prefs.appLockEnabled) return;
 
-    // نطلب فتح القفل. شاشة القفل/البيومتري تُدار داخل LockService.
     await ref.read(lockServiceProvider).requireUnlock(context);
   }
 
-  /// عند الرجوع من الخلفية نطلب القفل (سيأخذ LockService بزمام الأمور)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
