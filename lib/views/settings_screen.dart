@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../providers/prefs_provider.dart';
-import '../security/lock_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -22,7 +21,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(prefsProvider);
     final notifier = ref.read(prefsProvider.notifier);
-    final lock = ref.read(lockServiceProvider);
+
+    final tilesDisabled = !prefs.appLockEnabled;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
@@ -45,6 +45,7 @@ class SettingsScreen extends ConsumerWidget {
 
           // ===== قفل التطبيق =====
           const Text('قفل التطبيق', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+
           SwitchListTile(
             title: const Text('تفعيل القفل'),
             value: prefs.appLockEnabled,
@@ -52,152 +53,129 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           ListTile(
+            enabled: !tilesDisabled,
             title: const Text('طريقة القفل'),
             subtitle: Text(prefs.lockMethod == 'biometric' ? 'بصمة/وجه' : 'PIN'),
             trailing: const Icon(Icons.chevron_left),
-            onTap: () async {
-              final method = await showModalBottomSheet<String>(
-                context: context,
-                builder: (_) => SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        title: const Text('بصمة / وجه'),
-                        onTap: () => Navigator.pop(context, 'biometric'),
+            onTap: tilesDisabled
+                ? null
+                : () async {
+                    final method = await showModalBottomSheet<String>(
+                      context: context,
+                      builder: (_) => SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              title: const Text('بصمة / وجه'),
+                              onTap: () => Navigator.pop(context, 'biometric'),
+                            ),
+                            ListTile(
+                              title: const Text('PIN'),
+                              onTap: () => Navigator.pop(context, 'pin'),
+                            ),
+                          ],
+                        ),
                       ),
-                      ListTile(
-                        title: const Text('PIN'),
-                        onTap: () => Navigator.pop(context, 'pin'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-              if (method != null) {
-                notifier.setLockMethod(method);
-                if (method == 'pin' && prefs.pinHash == null && context.mounted) {
-                  // أول مرة يختار PIN ولا يوجد PIN مخزن → اطلب تعيين PIN (بإجبار unlock الذي يهيئ PIN)
-                  final ok = await lock.requireUnlock(context);
-                  if (!ok && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('فشل ضبط PIN')),
                     );
-                  }
-                }
-              }
-            },
+                    if (method == null) return;
+
+                    if (method == 'biometric') {
+                      // فحص الدعم قبل التبديل
+                      final auth = LocalAuthentication();
+                      try {
+                        final supported = await auth.isDeviceSupported();
+                        final canCheck = await auth.canCheckBiometrics;
+                        if (!(supported && canCheck)) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('جهازك لا يدعم البصمة/الوجه')),
+                            );
+                          }
+                          return;
+                        }
+                        notifier.setLockMethod('biometric');
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('تم اختيار البصمة/الوجه')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('تعذّر التحقق من الدعم: $e')),
+                          );
+                        }
+                      }
+                    } else {
+                      // PIN
+                      if (prefs.pinHash == null) {
+                        final newPin = await _promptNewPin(context);
+                        if (newPin == null) return;
+                        await notifier.setPin(newPin);
+                      }
+                      notifier.setLockMethod('pin');
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('تم اختيار PIN')),
+                        );
+                      }
+                    }
+                  },
           ),
 
           ListTile(
+            enabled: !tilesDisabled,
             title: const Text('القفل بعد الخمول'),
             subtitle: Text(_idleOptions[prefs.lockAfterSec] ?? '${prefs.lockAfterSec} ثانية'),
             trailing: const Icon(Icons.chevron_left),
-            onTap: () async {
-              final sec = await showModalBottomSheet<int>(
-                context: context,
-                builder: (_) => SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: _idleOptions.entries.map((e) {
-                      return ListTile(
-                        title: Text(e.value),
-                        onTap: () => Navigator.pop(context, e.key),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              );
-              if (sec != null) {
-                notifier.setLockAfter(sec);
-              }
-            },
+            onTap: tilesDisabled
+                ? null
+                : () async {
+                    final sec = await showModalBottomSheet<int>(
+                      context: context,
+                      builder: (_) => SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: _idleOptions.entries.map((e) {
+                            return ListTile(
+                              title: Text(e.value),
+                              onTap: () => Navigator.pop(context, e.key),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    );
+                    if (sec != null) {
+                      notifier.setLockAfter(sec);
+                    }
+                  },
           ),
 
           ListTile(
+            enabled: !tilesDisabled && prefs.lockMethod == 'pin',
             title: const Text('تغيير PIN'),
             subtitle: const Text('تعيين رمز مرور جديد'),
             trailing: const Icon(Icons.chevron_left),
-            onTap: () async {
-              // ✅ تحقق فوري من PIN الحالي قبل الانتقال للجديد
-              final currentOk = await _verifyCurrentPinBlocking(context, notifier);
-              if (!currentOk) return;
+            onTap: (!tilesDisabled && prefs.lockMethod == 'pin')
+                ? () async {
+                    final ok = await _verifyCurrentPinBlocking(context, notifier);
+                    if (!ok) return;
 
-              final newPin = await _promptNewPin(context);
-              if (newPin == null) return;
+                    final newPin = await _promptNewPin(context);
+                    if (newPin == null) return;
 
-              await notifier.setPin(newPin);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم تغيير PIN بنجاح')),
-                );
-              }
-            },
+                    await notifier.setPin(newPin);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تم تغيير PIN بنجاح')),
+                      );
+                    }
+                  }
+                : null,
           ),
 
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            icon: const Icon(Icons.lock),
-            label: const Text('اقفل الآن للاختبار'),
-            onPressed: () async {
-              final ok = await lock.requireUnlock(context);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(ok ? 'تم الفتح' : 'فشل الفتح')),
-                );
-              }
-            },
-          ),
-
-          const SizedBox(height: 16),
-          // ===== اختبار البصمة/الوجه + تشخيص =====
-          ListTile(
-            title: const Text('اختبار البصمة/الوجه'),
-            subtitle: const Text('تحقق من الدعم والتسجيل وحاول المصادقة'),
-            trailing: const Icon(Icons.fingerprint),
-            onTap: () async {
-              final auth = LocalAuthentication();
-              try {
-                final supported = await auth.isDeviceSupported();
-                final canCheck = await auth.canCheckBiometrics;
-                final biotypes = await auth.getAvailableBiometrics();
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      duration: const Duration(seconds: 4),
-                      content: Text(
-                        'مدعوم: $supported | يمكن الفحص: $canCheck | الأنواع: $biotypes',
-                      ),
-                    ),
-                  );
-                }
-
-                if (!(supported && canCheck)) return;
-
-                final ok = await auth.authenticate(
-                  localizedReason: 'اختبار المصادقة الحيوية',
-                  options: const AuthenticationOptions(
-                    biometricOnly: true,
-                    stickyAuth: true,
-                    useErrorDialogs: true,
-                  ),
-                );
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(ok ? 'نجحت المصادقة' : 'فشلت المصادقة')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('خطأ: $e')),
-                  );
-                }
-              }
-            },
-          ),
+          // ▼ لا يوجد أي أزرار اختبار/اقفل الآن/اختبار بصمة – تم حذفها كما طلبت
         ],
       ),
     );
@@ -205,7 +183,7 @@ class SettingsScreen extends ConsumerWidget {
 
   // ===== Helpers =====
 
-  /// يطلب PIN الحالي ويتحقق منه *داخل الحوار* — لا يغلق إلا لو صحيح.
+  /// تحقق من PIN الحالي داخل الحوار (لا يُغلق إلا إذا صحيح)
   Future<bool> _verifyCurrentPinBlocking(
     BuildContext context,
     PrefsNotifier notifier,
@@ -228,9 +206,7 @@ class SettingsScreen extends ConsumerWidget {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 8,
-                decoration: const InputDecoration(
-                  hintText: 'من 4 إلى 8 أرقام',
-                ),
+                decoration: const InputDecoration(hintText: 'من 4 إلى 8 أرقام'),
               ),
               if (error != null) ...[
                 const SizedBox(height: 8),
@@ -245,10 +221,7 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
             FilledButton(
               onPressed: () {
                 final pin = controller.text.trim();
@@ -259,7 +232,7 @@ class SettingsScreen extends ConsumerWidget {
                 final valid = notifier.verifyPin(pin);
                 if (!valid) {
                   setState(() => error = 'PIN غير صحيح');
-                  return; // لا نغلق
+                  return;
                 }
                 Navigator.pop(ctx, true);
               },
