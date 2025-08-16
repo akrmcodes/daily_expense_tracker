@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
-
 import '../providers/prefs_provider.dart';
+import 'backup_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -30,7 +30,10 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           // ===== المظهر =====
-          const Text('المظهر', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'المظهر',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           SegmentedButton<ThemeMode>(
             segments: const [
@@ -44,7 +47,10 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(height: 32),
 
           // ===== قفل التطبيق =====
-          const Text('قفل التطبيق', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'قفل التطبيق',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
 
           SwitchListTile(
             title: const Text('تفعيل القفل'),
@@ -55,7 +61,9 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             enabled: !tilesDisabled,
             title: const Text('طريقة القفل'),
-            subtitle: Text(prefs.lockMethod == 'biometric' ? 'بصمة/وجه' : 'PIN'),
+            subtitle: Text(
+              prefs.lockMethod == 'biometric' ? 'بصمة/وجه' : 'PIN',
+            ),
             trailing: const Icon(Icons.chevron_left),
             onTap: tilesDisabled
                 ? null
@@ -89,7 +97,9 @@ class SettingsScreen extends ConsumerWidget {
                         if (!(supported && canCheck)) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('جهازك لا يدعم البصمة/الوجه')),
+                              const SnackBar(
+                                content: Text('جهازك لا يدعم البصمة/الوجه'),
+                              ),
                             );
                           }
                           return;
@@ -97,13 +107,17 @@ class SettingsScreen extends ConsumerWidget {
                         notifier.setLockMethod('biometric');
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('تم اختيار البصمة/الوجه')),
+                            const SnackBar(
+                              content: Text('تم اختيار البصمة/الوجه'),
+                            ),
                           );
                         }
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('تعذّر التحقق من الدعم: $e')),
+                            SnackBar(
+                              content: Text('تعذّر التحقق من الدعم: $e'),
+                            ),
                           );
                         }
                       }
@@ -127,7 +141,9 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             enabled: !tilesDisabled,
             title: const Text('القفل بعد الخمول'),
-            subtitle: Text(_idleOptions[prefs.lockAfterSec] ?? '${prefs.lockAfterSec} ثانية'),
+            subtitle: Text(
+              _idleOptions[prefs.lockAfterSec] ?? '${prefs.lockAfterSec} ثانية',
+            ),
             trailing: const Icon(Icons.chevron_left),
             onTap: tilesDisabled
                 ? null
@@ -159,7 +175,10 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_left),
             onTap: (!tilesDisabled && prefs.lockMethod == 'pin')
                 ? () async {
-                    final ok = await _verifyCurrentPinBlocking(context, notifier);
+                    final ok = await _verifyCurrentPinBlocking(
+                      context,
+                      notifier,
+                    );
                     if (!ok) return;
 
                     final newPin = await _promptNewPin(context);
@@ -176,6 +195,22 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           // ▼ لا يوجد أي أزرار اختبار/اقفل الآن/اختبار بصمة – تم حذفها كما طلبت
+          // ... داخل children: [] في ListView
+          const Divider(height: 32),
+          const Text(
+            'النسخ الاحتياطي',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          ListTile(
+            title: const Text('تصدير/استيراد JSON'),
+            subtitle: const Text('احفظ نسخة وادمجها لاحقًا'),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const BackupScreen()));
+            },
+          ),
         ],
       ),
     );
@@ -221,7 +256,10 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
             FilledButton(
               onPressed: () {
                 final pin = controller.text.trim();
@@ -277,12 +315,18 @@ class SettingsScreen extends ConsumerWidget {
               ),
               if (error != null) ...[
                 const SizedBox(height: 8),
-                Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                Text(
+                  error!,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
               ],
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
             FilledButton(
               onPressed: () {
                 final p1 = c1.text.trim();
