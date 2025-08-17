@@ -1,4 +1,4 @@
-# 💸 Yemen Finance Manager
+# 💸 Yemen expenese tracker
 
 A modern, responsive personal finance management app built with **Flutter**, designed to organize your income and expenses into **folders**, **accounts**, and **transactions**. The app uses **Riverpod** for state management and **Hive** for persistent local storage — ensuring a smooth, fast, and consistent experience.
 
