@@ -26,6 +26,8 @@ class AppStateNotifier extends StateNotifier<AppState> {
     _loadData();
   }
 
+  Future<void> loadData() async => _loadData();
+  
   Future<void> _loadData() async {
     final transactionBox = Hive.box<TransactionModel>('transactions');
     final folderBox = Hive.box<FolderModel>('folders');

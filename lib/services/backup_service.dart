@@ -2,173 +2,168 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:hive/hive.dart';
 
-import '../models/folder_model.dart';
+import '../providers/app_state_provider.dart';
 import '../models/transaction_model.dart';
+import '../models/folder_model.dart';
 
 final backupServiceProvider = Provider<BackupService>((ref) {
-  return BackupService();
+  return BackupService(ref.read);
 });
 
 class BackupService {
-  Future<String> exportAllToTempFile() async {
-    final folderBox = Hive.box<FolderModel>('folders');
-    final txBox = Hive.box<TransactionModel>('transactions');
+  BackupService(this._read);
+  final T Function<T>(ProviderListenable<T>) _read;
 
-    final folders = folderBox.values.toList();
-    final txs = txBox.values.toList();
+  static const _appFolderName = 'DailyExpenseTracker';
+  static const _customExt = '.detb'; // امتداد مخصص: الملف JSON من الداخل لكنه .detb خارجياً
 
-    final data = {
+  String _buildFileName({bool withCustomExt = true}) {
+    final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
+    final base = 'expense_backup_$ts.json';
+    return withCustomExt ? base.replaceAll('.json', _customExt) : base;
+  }
+
+  Future<Directory> _ensureDownloadsAppDir() async {
+    Directory? downloadsDir;
+
+    try {
+      final dirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+      if (dirs != null && dirs.isNotEmpty) {
+        downloadsDir = dirs.first;
+      }
+    } catch (_) {
+      // تجاهل — نجرّب بديل
+    }
+
+    downloadsDir ??= await getApplicationDocumentsDirectory();
+
+    final appDir = Directory('${downloadsDir.path}/$_appFolderName');
+    if (!await appDir.exists()) {
+      await appDir.create(recursive: true);
+    }
+    return appDir;
+  }
+
+  Map<String, dynamic> _collectData() {
+    final state = _read(appStateProvider);
+    return {
       'version': 1,
       'exportedAt': DateTime.now().toIso8601String(),
-      'folders': folders.map(_folderToMap).toList(),
-      'transactions': txs.map(_txToMap).toList(),
+      'folders': state.folders
+          .map((f) => {
+                'key': f.key,
+                'name': f.name,
+                'parentFolderId': f.parentFolderId,
+              })
+          .toList(),
+      'transactions': state.transactions
+          .map((t) => {
+                'key': t.key,
+                'name': t.name,
+                'amount': t.amount,
+                'isIncome': t.isIncome,
+                'date': t.date.toIso8601String(),
+                'folder': t.folder,
+                'account': t.account,
+                'notes': t.notes,
+              })
+          .toList(),
     };
-
-    final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
-
-    final dir = await getTemporaryDirectory();
-    final file = File(
-      '${dir.path}/expense_backup_${DateTime.now().millisecondsSinceEpoch}.json',
-    );
-    await file.writeAsString(jsonStr, flush: true);
-    return file.path; // نرجّع المسار للواجهة
   }
 
-  Future<void> shareFile(String path) async {
-    final xfile = XFile(path, mimeType: 'application/json');
-    await Share.shareXFiles([xfile], text: 'نسخة احتياطية من بيانات التطبيق');
+  /// تصدير إلى Downloads/DailyExpenseTracker
+  Future<File> exportToDownloads({bool shareAfter = true}) async {
+    final dir = await _ensureDownloadsAppDir();
+    final filePath = '${dir.path}/${_buildFileName()}';
+
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(_collectData());
+    final file = File(filePath);
+    await file.writeAsString(jsonStr);
+
+    if (shareAfter) {
+      await Share.shareXFiles([XFile(file.path)], text: 'نسخة احتياطية');
+    }
+    return file;
   }
 
-  Future<ImportResult> importFromJsonWithPicker() async {
+  /// استيراد عبر File Picker — يقبل .detb أو .json
+  Future<void> importFromPicker(BuildContext context) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['detb', 'json'],
+      withData: false,
     );
-    if (result == null || result.files.isEmpty) {
-      return ImportResult(cancelled: true);
-    }
-    final path = result.files.single.path;
-    if (path == null) return ImportResult(cancelled: true);
+    if (result == null || result.files.isEmpty) return;
+    final picked = result.files.single.path;
+    if (picked == null) return;
 
-    final file = File(path);
-    final jsonStr = await file.readAsString();
-    return importFromJsonString(jsonStr);
-  }
+    final file = File(picked);
+    await _importFromFile(file);
 
-  Future<ImportResult> importFromJsonString(String jsonStr) async {
-    try {
-      final map = json.decode(jsonStr) as Map<String, dynamic>;
-      final folders = (map['folders'] as List?) ?? [];
-      final transactions = (map['transactions'] as List?) ?? [];
-
-      final folderBox = Hive.box<FolderModel>('folders');
-      final txBox = Hive.box<TransactionModel>('transactions');
-
-      int foldersAdded = 0;
-      int txAdded = 0;
-
-      final existingFolders = folderBox.values.toList();
-      bool folderExists(FolderModel f) {
-        return existingFolders.any(
-          (e) => e.name == f.name && e.parentFolderId == f.parentFolderId,
-        );
-      }
-
-      for (final f in folders) {
-        final folder = _folderFromMap(Map<String, dynamic>.from(f));
-        if (!folderExists(folder)) {
-          await folderBox.add(folder);
-          existingFolders.add(folder);
-          foldersAdded++;
-        }
-      }
-
-      final existingTx = txBox.values.toList();
-      bool txExists(TransactionModel t) {
-        return existingTx.any((e) =>
-            e.name == t.name &&
-            e.amount == t.amount &&
-            e.isIncome == t.isIncome &&
-            e.date.millisecondsSinceEpoch == t.date.millisecondsSinceEpoch &&
-            e.folder == t.folder &&
-            e.account == t.account &&
-            (e.notes ?? '') == (t.notes ?? ''));
-      }
-
-      for (final t in transactions) {
-        final tx = _txFromMap(Map<String, dynamic>.from(t));
-        if (!txExists(tx)) {
-          await txBox.add(tx);
-          existingTx.add(tx);
-          txAdded++;
-        }
-      }
-
-      return ImportResult(
-        cancelled: false,
-        foldersAdded: foldersAdded,
-        transactionsAdded: txAdded,
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم استيراد النسخة الاحتياطية بنجاح')),
       );
-    } catch (e, st) {
-      if (kDebugMode) print('Import error: $e\n$st');
-      return ImportResult(cancelled: false, error: e.toString());
     }
   }
 
-  Map<String, dynamic> _folderToMap(FolderModel f) => {
-        'name': f.name,
-        'parentFolderId': f.parentFolderId,
-      };
+  Future<void> importFromFilePath(String path) async {
+    await _importFromFile(File(path));
+  }
 
-  FolderModel _folderFromMap(Map<String, dynamic> m) {
-    return FolderModel(
-      name: m['name'] as String,
-      parentFolderId: (m['parentFolderId'] as num?)?.toInt(),
-    );
+  Future<void> _importFromFile(File file) async {
+    final txt = await file.readAsString();
+    final map = jsonDecode(txt) as Map<String, dynamic>;
+    await _restoreFromMap(map);
+  }
+
+  Future<void> _restoreFromMap(Map<String, dynamic> data) async {
+    final txBox = Hive.box<TransactionModel>('transactions');
+    final folderBox = Hive.box<FolderModel>('folders');
+
+    // 1) تفريغ (بدون دمج — سهل وواضح)
+    await txBox.clear();
+    await folderBox.clear();
+
+    // 2) استعادة المجلدات
+    final folders = (data['folders'] as List? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map((m) => FolderModel(
+              name: m['name'] as String,
+              parentFolderId: m['parentFolderId'] as int?,
+            ))
+        .toList();
+    for (final f in folders) {
+      await folderBox.add(f);
     }
 
-  Map<String, dynamic> _txToMap(TransactionModel t) => {
-        'name': t.name,
-        'amount': t.amount,
-        'isIncome': t.isIncome,
-        'date': t.date.millisecondsSinceEpoch,
-        'folder': t.folder,
-        'account': t.account,
-        'notes': t.notes,
-      };
+    // 3) استعادة المعاملات
+    final txs = (data['transactions'] as List? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map((m) => TransactionModel(
+              name: m['name'] as String,
+              amount: (m['amount'] as num).toDouble(),
+              isIncome: m['isIncome'] as bool,
+              date: DateTime.parse(m['date'] as String),
+              folder: m['folder'] as String,
+              account: m['account'] as String,
+              notes: m['notes'] as String?,
+            ))
+        .toList();
+    for (final t in txs) {
+      await txBox.add(t);
+    }
 
-  TransactionModel _txFromMap(Map<String, dynamic> m) {
-    return TransactionModel(
-      name: m['name'] as String,
-      amount: (m['amount'] as num).toDouble(),
-      isIncome: m['isIncome'] as bool,
-      date: DateTime.fromMillisecondsSinceEpoch(m['date'] as int),
-      folder: m['folder'] as String,
-      account: m['account'] as String,
-      notes: (m['notes'] as String?)?.trim().isEmpty == true
-          ? null
-          : m['notes'] as String?,
-    );
+    // 4) تحديث الحالة
+    await _read(appStateProvider.notifier).loadData();
   }
-}
-
-class ImportResult {
-  final bool cancelled;
-  final int foldersAdded;
-  final int transactionsAdded;
-  final String? error;
-
-  ImportResult({
-    required this.cancelled,
-    this.foldersAdded = 0,
-    this.transactionsAdded = 0,
-    this.error,
-  });
 }
