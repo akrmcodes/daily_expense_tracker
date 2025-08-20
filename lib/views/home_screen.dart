@@ -14,6 +14,7 @@ import 'create_folder_screen.dart';
 import 'folder_details_screen.dart';
 import './settings_screen.dart';
 import '../providers/prefs_provider.dart';
+import 'reports_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -68,6 +69,15 @@ class HomeScreen extends ConsumerWidget {
               prefsN.setThemeMode(next); // 👈 يحدّث Hive ويعيد البناء
             },
           ),
+            IconButton(
+    tooltip: 'التقارير',
+    icon: const Icon(Icons.bar_chart),
+    onPressed: () {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ReportsScreen()),
+      );
+    },
+  ),
         ],
       ),
       body: Column(
