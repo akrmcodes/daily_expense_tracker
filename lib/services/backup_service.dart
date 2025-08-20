@@ -1,4 +1,3 @@
-// lib/services/backup_service.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,6 +13,7 @@ import 'package:hive/hive.dart';
 import '../providers/app_state_provider.dart';
 import '../models/transaction_model.dart';
 import '../models/folder_model.dart';
+import 'dart:typed_data';
 
 final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(ref.read);
@@ -24,9 +24,10 @@ class BackupService {
   final T Function<T>(ProviderListenable<T>) _read;
 
   static const _appFolderName = 'DailyExpenseTracker';
-  static const _customExt = '.detb'; // امتداد مخصص: الملف JSON من الداخل لكنه .detb خارجياً
+  static const _customExt = '.detb';
 
   String _buildFileName({bool withCustomExt = true}) {
+    // مثال: expense_backup_2025-01-15_21-30-05.detb
     final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
     final base = 'expense_backup_$ts.json';
     return withCustomExt ? base.replaceAll('.json', _customExt) : base;
@@ -36,13 +37,13 @@ class BackupService {
     Directory? downloadsDir;
 
     try {
-      final dirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+      final dirs = await getExternalStorageDirectories(
+        type: StorageDirectory.downloads,
+      );
       if (dirs != null && dirs.isNotEmpty) {
         downloadsDir = dirs.first;
       }
-    } catch (_) {
-      // تجاهل — نجرّب بديل
-    }
+    } catch (_) {}
 
     downloadsDir ??= await getApplicationDocumentsDirectory();
 
@@ -59,28 +60,25 @@ class BackupService {
       'version': 1,
       'exportedAt': DateTime.now().toIso8601String(),
       'folders': state.folders
-          .map((f) => {
-                'key': f.key,
-                'name': f.name,
-                'parentFolderId': f.parentFolderId,
-              })
+          .map((f) => {'name': f.name, 'parentFolderId': f.parentFolderId})
           .toList(),
       'transactions': state.transactions
-          .map((t) => {
-                'key': t.key,
-                'name': t.name,
-                'amount': t.amount,
-                'isIncome': t.isIncome,
-                'date': t.date.toIso8601String(),
-                'folder': t.folder,
-                'account': t.account,
-                'notes': t.notes,
-              })
+          .map(
+            (t) => {
+              'name': t.name,
+              'amount': t.amount,
+              'isIncome': t.isIncome,
+              'date': t.date.toIso8601String(),
+              'folder': t.folder,
+              'account': t.account,
+              'notes': t.notes,
+            },
+          )
           .toList(),
     };
   }
 
-  /// تصدير إلى Downloads/DailyExpenseTracker
+  /// حفظ في Downloads/DailyExpenseTracker + مشاركة اختيارية
   Future<File> exportToDownloads({bool shareAfter = true}) async {
     final dir = await _ensureDownloadsAppDir();
     final filePath = '${dir.path}/${_buildFileName()}';
@@ -95,8 +93,43 @@ class BackupService {
     return file;
   }
 
-  /// استيراد عبر File Picker — يقبل .detb أو .json
-  Future<void> importFromPicker(BuildContext context) async {
+  /// احفظ في مكان يختاره المستخدم (حوار حفظ)
+  /// احفظ في مكان يختاره المستخدم (حوار حفظ)
+  Future<File?> exportWithPicker() async {
+    final suggested = _buildFileName();
+    final dataMap = _collectData();
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(dataMap);
+
+    // ✅ على Android/iOS: saveFile يحتاج bytes
+    final bytes = Uint8List.fromList(utf8.encode(jsonStr));
+
+    final savePath = await FilePicker.platform.saveFile(
+      dialogTitle: 'اختر مكان الحفظ',
+      fileName: suggested,
+      type: FileType.custom,
+      allowedExtensions: ['detb', 'json'],
+      bytes: bytes, // ← أهم سطر
+    );
+
+    // ملاحظة: على iOS قد يعيد مسار "افتراضي" (virtual) تم حفظه عبر Files
+    // وعلى بعض الأجهزة قد يكون null لو أغلق المستخدم الحوار
+    if (savePath == null) return null;
+
+    // نحاول إنشاء كائن File للإشارة فقط. أحيانًا الملف يكون محفوظًا فعليًا
+    // في وجهة النظام حتى لو هذا الكائن لا يشير لملف يمكن قراءته مباشرة.
+    final f = File(savePath);
+    // لو تريد التأكد:
+    // if (!await f.exists()) {
+    //   // الملف غالبًا حُفظ عبر واجهة النظام حتى لو الكائن لا يرى ملفًا "محليًا".
+    // }
+    return f;
+  }
+
+  /// استيراد عبر منتقي الملفات ثم استبدال/دمج حسب `merge`
+  Future<void> importFromPicker(
+    BuildContext context, {
+    required bool merge,
+  }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['detb', 'json'],
@@ -107,63 +140,105 @@ class BackupService {
     if (picked == null) return;
 
     final file = File(picked);
-    await _importFromFile(file);
+    await _importFromFile(file, merge: merge);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم استيراد النسخة الاحتياطية بنجاح')),
+        SnackBar(
+          duration: const Duration(seconds: 4),
+          content: Text(merge ? 'تم الدمج بنجاح' : 'تم الاستبدال بنجاح'),
+        ),
       );
     }
   }
 
-  Future<void> importFromFilePath(String path) async {
-    await _importFromFile(File(path));
-  }
-
-  Future<void> _importFromFile(File file) async {
+  Future<void> _importFromFile(File file, {required bool merge}) async {
     final txt = await file.readAsString();
     final map = jsonDecode(txt) as Map<String, dynamic>;
-    await _restoreFromMap(map);
+    await _restoreFromMap(map, merge: merge);
   }
 
-  Future<void> _restoreFromMap(Map<String, dynamic> data) async {
+  Future<void> _restoreFromMap(
+    Map<String, dynamic> data, {
+    required bool merge,
+  }) async {
     final txBox = Hive.box<TransactionModel>('transactions');
     final folderBox = Hive.box<FolderModel>('folders');
 
-    // 1) تفريغ (بدون دمج — سهل وواضح)
-    await txBox.clear();
-    await folderBox.clear();
+    if (!merge) {
+      // استبدال كلي
+      await txBox.clear();
+      await folderBox.clear();
+    }
 
-    // 2) استعادة المجلدات
+    // --- استعادة/دمج المجلدات ---
+    final existingFolders = folderBox.values.toList();
+    final existingFolderKey = <String, FolderModel>{
+      for (final f in existingFolders) _folderKey(f.name, f.parentFolderId): f,
+    };
+
     final folders = (data['folders'] as List? ?? [])
         .cast<Map<String, dynamic>>()
-        .map((m) => FolderModel(
-              name: m['name'] as String,
-              parentFolderId: m['parentFolderId'] as int?,
-            ))
+        .map(
+          (m) => FolderModel(
+            name: m['name'] as String,
+            parentFolderId: m['parentFolderId'] as int?,
+          ),
+        )
         .toList();
+
     for (final f in folders) {
-      await folderBox.add(f);
+      final key = _folderKey(f.name, f.parentFolderId);
+      if (!existingFolderKey.containsKey(key)) {
+        await folderBox.add(f);
+        existingFolderKey[key] = f;
+      }
     }
 
-    // 3) استعادة المعاملات
+    // --- استعادة/دمج المعاملات ---
+    final existingTx = txBox.values.toList();
+    final existingSig = <String>{for (final t in existingTx) _txSignature(t)};
+
     final txs = (data['transactions'] as List? ?? [])
         .cast<Map<String, dynamic>>()
-        .map((m) => TransactionModel(
-              name: m['name'] as String,
-              amount: (m['amount'] as num).toDouble(),
-              isIncome: m['isIncome'] as bool,
-              date: DateTime.parse(m['date'] as String),
-              folder: m['folder'] as String,
-              account: m['account'] as String,
-              notes: m['notes'] as String?,
-            ))
+        .map(
+          (m) => TransactionModel(
+            name: m['name'] as String,
+            amount: (m['amount'] as num).toDouble(),
+            isIncome: m['isIncome'] as bool,
+            date: DateTime.parse(m['date'] as String),
+            folder: m['folder'] as String,
+            account: m['account'] as String,
+            notes: m['notes'] as String?,
+          ),
+        )
         .toList();
+
     for (final t in txs) {
-      await txBox.add(t);
+      final sig = _txSignature(t);
+      if (!existingSig.contains(sig)) {
+        await txBox.add(t);
+        existingSig.add(sig);
+      }
     }
 
-    // 4) تحديث الحالة
     await _read(appStateProvider.notifier).loadData();
+  }
+
+  // مفاتيح/تواقيع للمطابقة
+  String _folderKey(String name, int? parentId) =>
+      '${name.trim()}|${parentId ?? -1}';
+
+  String _txSignature(TransactionModel t) {
+    final n = (t.notes ?? '').trim();
+    return [
+      t.name.trim(),
+      t.amount.toStringAsFixed(4),
+      t.isIncome ? '1' : '0',
+      t.date.toIso8601String(),
+      t.folder.trim(),
+      t.account.trim(),
+      n,
+    ].join('|');
   }
 }
