@@ -51,11 +51,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     border: OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem(value: null, child: Text('كل المجلدات')),
-                    ...folders.map((name) => DropdownMenuItem(
-                          value: name,
-                          child: Text(name),
-                        )),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('كل المجلدات'),
+                    ),
+                    ...folders.map(
+                      (name) =>
+                          DropdownMenuItem(value: name, child: Text(name)),
+                    ),
                   ],
                   onChanged: (v) {
                     setState(() {
@@ -75,11 +78,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     border: OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem(value: null, child: Text('كل الحسابات')),
-                    ...accounts.map((name) => DropdownMenuItem(
-                          value: name,
-                          child: Text(name),
-                        )),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('كل الحسابات'),
+                    ),
+                    ...accounts.map(
+                      (name) =>
+                          DropdownMenuItem(value: name, child: Text(name)),
+                    ),
                   ],
                   onChanged: (v) => setState(() => _selectedAccount = v),
                 ),
@@ -105,11 +111,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   onPressed: data.items.isEmpty
                       ? null
                       : () async {
-                          await service.exportCsvAndShare(data);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('تم إنشاء وتصدير CSV')),
-                          );
+                          try {
+                            final ok = await service.saveCsvWithPicker(data);
+                            if (!mounted) return;
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تم حفظ CSV بنجاح'),
+                                ),
+                              );
+                            } else {
+                              // المستخدم ألغى → نحفظ في Downloads كخطة بديلة
+                              final f = await service.saveCsvToDownloads(data);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('تم الحفظ في: ${f.path}'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('فشل حفظ CSV: $e')),
+                            );
+                          }
                         },
                 ),
               ),
@@ -121,11 +146,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   onPressed: data.items.isEmpty
                       ? null
                       : () async {
-                          await service.exportPdfAndShare(data);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('تم إنشاء وتصدير PDF')),
-                          );
+                          try {
+                            final ok = await service.savePdfWithPicker(data);
+                            if (!mounted) return;
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تم حفظ PDF بنجاح'),
+                                ),
+                              );
+                            } else {
+                              // المستخدم ألغى → نحفظ في Downloads كخطة بديلة
+                              final f = await service.savePdfToDownloads(data);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('تم الحفظ في: ${f.path}'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('فشل حفظ PDF: $e')),
+                            );
+                          }
                         },
                 ),
               ),
@@ -136,20 +180,34 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  List<String> _buildAccountsList(List<TransactionModel> all, {String? folder}) {
-    final filtered = folder == null ? all : all.where((t) => t.folder == folder).toList();
-    final accounts = filtered.map((t) => t.account).where((s) => s.isNotEmpty).toSet().toList()..sort();
+  List<String> _buildAccountsList(
+    List<TransactionModel> all, {
+    String? folder,
+  }) {
+    final filtered = folder == null
+        ? all
+        : all.where((t) => t.folder == folder).toList();
+    final accounts =
+        filtered
+            .map((t) => t.account)
+            .where((s) => s.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return accounts;
   }
 
-    Widget _buildTable(BuildContext context, List<TransactionModel> items) {
+  Widget _buildTable(BuildContext context, List<TransactionModel> items) {
     if (items.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Opacity(
             opacity: 0.7,
-            child: Text('لا توجد بيانات', style: Theme.of(context).textTheme.titleMedium),
+            child: Text(
+              'لا توجد بيانات',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
         ),
       );
@@ -177,19 +235,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               _Cell('التاريخ'),
             ],
           ),
-          ...items.map((t) => TableRow(
-                children: [
-                  _Cell(t.name),
-                  _Cell(t.amount.toStringAsFixed(2), alignEnd: true),
-                  _Cell(t.isIncome ? 'دخل' : 'مصروف'),
-                  _Cell(DateFormat('yyyy-MM-dd HH:mm').format(t.date)),
-                ],
-              )),
+          ...items.map(
+            (t) => TableRow(
+              children: [
+                _Cell(t.name),
+                _Cell(t.amount.toStringAsFixed(2), alignEnd: true),
+                _Cell(t.isIncome ? 'دخل' : 'مصروف'),
+                _Cell(DateFormat('yyyy-MM-dd HH:mm').format(t.date)),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
-
 }
 
 class _Cell extends StatelessWidget {
@@ -201,13 +260,14 @@ class _Cell extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Align(
-        alignment: alignEnd ? Alignment.centerLeft : Alignment.centerRight, // RTL
+        alignment: alignEnd
+            ? Alignment.centerLeft
+            : Alignment.centerRight, // RTL
         child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }
 }
-
 
 /// مجرد غلاف padding كي نخفف تكرار الكود
 class _Pad extends StatelessWidget {
