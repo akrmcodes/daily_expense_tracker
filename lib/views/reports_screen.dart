@@ -1,11 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart'; // ← مهم لتنسيق التاريخ
 
 import '../providers/app_state_provider.dart';
+import '../models/transaction_model.dart';
+import '../widgets/balance_card.dart';
+import '../widgets/app/section_title.dart';
+import '../services/report_service.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({Key? key}) : super(key: key);
@@ -15,212 +16,282 @@ class ReportsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
-  DateTime _from = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _to   = DateTime(DateTime.now().year, DateTime.now().month + 1, 0);
+  String? _selectedFolder;
+  String? _selectedAccount;
 
   @override
   Widget build(BuildContext context) {
-    final app = ref.watch(appStateProvider);
+    final state = ref.watch(appStateProvider);
+    final tx = state.transactions;
+    final folders = state.folders.map((f) => f.name).toSet().toList()..sort();
 
-    final txInRange = app.transactions.where((t) {
-      final d = t.date;
-      return !d.isBefore(_from) && !d.isAfter(_to);
-    }).toList();
+    final accounts = _buildAccountsList(tx, folder: _selectedFolder);
 
-    final totalIncome = txInRange.where((t) => t.isIncome).fold<double>(0, (s, t) => s + t.amount);
-    final totalExpense= txInRange.where((t) => !t.isIncome).fold<double>(0, (s, t) => s + t.amount);
-    final net = totalIncome - totalExpense;
-
-    // تجميع حسب المجلد/الحساب
-    final Map<String, double> byFolder = {};
-    final Map<String, double> byAccount = {};
-    for (final t in txInRange) {
-      final delta = t.isIncome ? t.amount : -t.amount;
-      byFolder[t.folder]  = (byFolder[t.folder]  ?? 0) + delta;
-      final accKey = '${t.folder} / ${t.account}';
-      byAccount[accKey]   = (byAccount[accKey]   ?? 0) + delta;
-    }
+    final service = ReportService();
+    final data = service.buildReport(
+      tx,
+      ReportFilters(folder: _selectedFolder, account: _selectedAccount),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('التقارير')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _DateRangePicker(
-            from: _from,
-            to: _to,
-            onChanged: (f, t) => setState(() { _from = f; _to = t; }),
+          const SectionTitle('الفلاتر'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedFolder,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'المجلد',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('كل المجلدات'),
+                    ),
+                    ...folders.map(
+                      (name) =>
+                          DropdownMenuItem(value: name, child: Text(name)),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    setState(() {
+                      _selectedFolder = v;
+                      _selectedAccount = null;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedAccount,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الحساب',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('كل الحسابات'),
+                    ),
+                    ...accounts.map(
+                      (name) =>
+                          DropdownMenuItem(value: name, child: Text(name)),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _selectedAccount = v),
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(height: 12),
-          _SummaryCard(totalIncome: totalIncome, totalExpense: totalExpense, net: net),
+          const SizedBox(height: 16),
+          BalanceCard(income: data.totalIncome, expense: data.totalExpense),
 
           const SizedBox(height: 16),
-          Text('حسب المجلد', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _kvTable(context, byFolder),
+          const SectionTitle('المعاملات'),
+          _buildTable(context, data.items),
 
           const SizedBox(height: 16),
-          Text('حسب الحساب', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _kvTable(context, byAccount),
-
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            icon: const Icon(Icons.ios_share),
-            label: const Text('تصدير CSV ومشاركته'),
-            onPressed: () async {
-              await _exportCsvAndShare(
-                context: context,
-                from: _from,
-                to: _to,
-                rows: txInRange.map((t) => [
-                  DateFormat('yyyy-MM-dd').format(t.date),
-                  t.folder,
-                  t.account,
-                  t.name,
-                  t.isIncome ? 'دخل' : 'مصروف',
-                  t.amount.toStringAsFixed(2),
-                  t.notes ?? '',
-                ]).toList(),
-              );
-            },
-          )
+          const SectionTitle('تصدير'),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.table_view),
+                  label: const Text('CSV (Excel)'),
+                  onPressed: data.items.isEmpty
+                      ? null
+                      : () async {
+                          try {
+                            final ok = await service.saveCsvWithPicker(data);
+                            if (!mounted) return;
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تم حفظ CSV بنجاح'),
+                                ),
+                              );
+                            } else {
+                              // المستخدم ألغى → نحفظ في Downloads كخطة بديلة
+                              final f = await service.saveCsvToDownloads(data);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('تم الحفظ في: ${f.path}'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('فشل حفظ CSV: $e')),
+                            );
+                          }
+                        },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('PDF'),
+                  onPressed: data.items.isEmpty
+                      ? null
+                      : () async {
+                          try {
+                            final ok = await service.savePdfWithPicker(data);
+                            if (!mounted) return;
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تم حفظ PDF بنجاح'),
+                                ),
+                              );
+                            } else {
+                              // المستخدم ألغى → نحفظ في Downloads كخطة بديلة
+                              final f = await service.savePdfToDownloads(data);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('تم الحفظ في: ${f.path}'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('فشل حفظ PDF: $e')),
+                            );
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Future<void> _exportCsvAndShare({
-    required BuildContext context,
-    required DateTime from,
-    required DateTime to,
-    required List<List<String>> rows,
-  }) async {
-    // رأس CSV
-    final buffer = StringBuffer();
-    buffer.writeln('date,folder,account,name,type,amount,notes');
-    for (final r in rows) {
-      buffer.writeln(r.map(_csvEscape).join(','));
-    }
+  List<String> _buildAccountsList(
+    List<TransactionModel> all, {
+    String? folder,
+  }) {
+    final filtered = folder == null
+        ? all
+        : all.where((t) => t.folder == folder).toList();
+    final accounts =
+        filtered
+            .map((t) => t.account)
+            .where((s) => s.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return accounts;
+  }
 
-    final tmp = await getTemporaryDirectory();
-    final name = 'report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
-    final file = File('${tmp.path}/$name');
-    await file.writeAsString(buffer.toString(), flush: true);
-
-    await Share.shareXFiles([XFile(file.path)], text: 'تقرير المعاملات ($name)');
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم إنشاء ${file.path}')),
+  Widget _buildTable(BuildContext context, List<TransactionModel> items) {
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Opacity(
+            opacity: 0.7,
+            child: Text(
+              'لا توجد بيانات',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ),
       );
     }
-  }
 
-  String _csvEscape(String s) {
-    final needQuotes = s.contains(',') || s.contains('"') || s.contains('\n');
-    var out = s.replaceAll('"', '""');
-    if (needQuotes) out = '"$out"';
-    return out;
-  }
-
-  Widget _kvTable(BuildContext context, Map<String, double> map) {
-    if (map.isEmpty) {
-      return Opacity(
-        opacity: 0.7,
-        child: Text('لا يوجد بيانات في النطاق المحدد', style: Theme.of(context).textTheme.bodyMedium),
-      );
-    }
-    final entries = map.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        children: entries.map((e) {
-          final color = e.value >= 0 ? Colors.green : Colors.red;
-          return ListTile(
-            title: Text(e.key, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Text(e.value.toStringAsFixed(2), style: TextStyle(color: color, fontWeight: FontWeight.w700)),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _DateRangePicker extends StatelessWidget {
-  final DateTime from;
-  final DateTime to;
-  final void Function(DateTime from, DateTime to) onChanged;
-  const _DateRangePicker({required this.from, required this.to, required this.onChanged, Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final fmt = DateFormat('y/MM/dd', 'ar');
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: const Icon(Icons.date_range),
-        title: Text('الفترة: ${fmt.format(from)} → ${fmt.format(to)}'),
-        onTap: () async {
-          final now = DateTime.now();
-          final picked = await showDateRangePicker(
-            context: context,
-            firstDate: DateTime(now.year - 5),
-            lastDate: DateTime(now.year + 5),
-            initialDateRange: DateTimeRange(start: from, end: to),
-            locale: const Locale('ar'),
-            builder: (context, child) => Theme(data: Theme.of(context), child: child!),
-          );
-          if (picked != null) onChanged(picked.start, picked.end);
-        },
-      ),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final double totalIncome;
-  final double totalExpense;
-  final double net;
-  const _SummaryCard({required this.totalIncome, required this.totalExpense, required this.net, Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final netColor = net >= 0 ? Colors.green : Colors.red;
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            _metric(context, 'الدخل', '+${totalIncome.toStringAsFixed(2)}', Colors.green),
-            const SizedBox(width: 12),
-            _metric(context, 'المصروف', '-${totalExpense.toStringAsFixed(2)}', Colors.red),
-            const Spacer(),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Table(
+        columnWidths: const {
+          0: FlexColumnWidth(2),
+          1: FlexColumnWidth(),
+          2: FlexColumnWidth(),
+          3: FlexColumnWidth(1.6),
+        },
+        border: TableBorder.all(color: cs.outlineVariant.withOpacity(.3)),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          TableRow(
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest),
+            children: const [
+              _Cell('العملية'),
+              _Cell('المبلغ'),
+              _Cell('النوع'),
+              _Cell('التاريخ'),
+            ],
+          ),
+          ...items.map(
+            (t) => TableRow(
               children: [
-                Text('الصافي', style: Theme.of(context).textTheme.titleMedium),
-                Text(net.toStringAsFixed(2), style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: netColor, fontWeight: FontWeight.bold)),
+                _Cell(t.name),
+                _Cell(t.amount.toStringAsFixed(2), alignEnd: true),
+                _Cell(t.isIncome ? 'دخل' : 'مصروف'),
+                _Cell(DateFormat('yyyy-MM-dd HH:mm').format(t.date)),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _metric(BuildContext ctx, String title, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(ctx).textTheme.bodyMedium),
-        const SizedBox(height: 6),
-        Text(value, style: Theme.of(ctx).textTheme.titleLarge?.copyWith(color: color, fontWeight: FontWeight.w800)),
-      ],
+class _Cell extends StatelessWidget {
+  final String text;
+  final bool alignEnd;
+  const _Cell(this.text, {this.alignEnd = false});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Align(
+        alignment: alignEnd
+            ? Alignment.centerLeft
+            : Alignment.centerRight, // RTL
+        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+}
+
+/// مجرد غلاف padding كي نخفف تكرار الكود
+class _Pad extends StatelessWidget {
+  final Widget child;
+  const _Pad({required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: child,
+    );
+  }
+}
+
+/// Text قابل لإعادة الاستخدام مع ellipsis (سنمرر له via Inherited النص المطلوب)
+class _EllipsisText extends StatelessWidget {
+  const _EllipsisText();
+  @override
+  Widget build(BuildContext context) {
+    // هذا مجرد placeholder؛ لو تحب نعيد الجدول بسرعة لنسخة أبسط:
+    return const Text(
+      '—', // سيتم استبداله بالنسخة الأبسط أدناه (انظر الملاحظة)
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

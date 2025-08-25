@@ -1,7 +1,7 @@
 name: daily_expense_tracker
 description: "A new Flutter project."
 
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -27,7 +27,8 @@ dependencies:
   crypto: ^3.0.6
   share_plus: ^11.1.0
   file_picker: ^10.3.1
-  
+  pdf: ^3.11.3
+  printing: ^5.14.2
 
 dev_dependencies:
   flutter_test:
@@ -37,3 +38,10 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 flutter:
   uses-material-design: true
+
+  fonts:
+    - family: NotoNaskhArabic
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic-Regular.ttf
+        - asset: assets/fonts/NotoNaskhArabic-Bold.ttf
+          weight: 700
