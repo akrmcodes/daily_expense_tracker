@@ -27,6 +27,8 @@ dependencies:
   crypto: ^3.0.6
   share_plus: ^11.1.0
   file_picker: ^10.3.1
+  pdf: ^3.11.3
+  printing: ^5.14.2
   
 
 dev_dependencies:
@@ -37,3 +39,9 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 flutter:
   uses-material-design: true
+
+  
+flutter:
+  assets:
+    - assets/fonts/NotoNaskhArabic-Regular.ttf
+    - assets/fonts/NotoNaskhArabic-Bold.ttf
