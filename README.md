@@ -1,105 +1,66 @@
-# 💸 Yemen expenese tracker
+# Daily Expense Tracker
 
-A modern, responsive personal finance management app built with **Flutter**, designed to organize your income and expenses into **folders**, **accounts**, and **transactions**. The app uses **Riverpod** for state management and **Hive** for persistent local storage — ensuring a smooth, fast, and consistent experience.
+Flutter-based personal finance app that keeps expenses and income organized into folders, accounts, and transactions. The app is fully localized for Arabic (RTL by default), works offline with Hive storage, and uses Riverpod for predictable state management.
 
-> 📱 Fully localized for Arabic (RTL layout) and structured using best practices in UI/UX, architecture, and component design.
+## Features
+- Folder → account → transaction hierarchy with real-time balances.
+- Local-first data with Hive boxes (`transactions`, `folders`) and Riverpod streams.
+- App lock with biometric/PIN (via `local_auth`) that re-locks when returning from background.
+- Backup and restore to JSON/`.detb`, plus sharing through the system sheet.
+- Reports to CSV or PDF (Arabic fonts embedded) with folder/account filters.
+- Light/Dark themes using FlexColorScheme and Arabic-friendly typography.
 
----
+## Tech Stack
+- **Framework:** Flutter (Dart SDK ^3.8.x)
+- **State management:** flutter_riverpod
+- **Storage:** hive & hive_flutter
+- **Security & device APIs:** local_auth, path_provider, file_picker
+- **Sharing & reports:** share_plus, pdf, printing
+- **Styling:** flex_color_scheme, google_fonts (Noto Naskh Arabic)
 
-## 🚀 Features
+## Getting Started
+1. **Prerequisites**
+   - Flutter SDK installed and added to PATH.
+   - A connected device or emulator.
+2. **Install dependencies**
+   ```bash
+   flutter pub get
+   ```
+3. **(Optional) Regenerate Hive adapters** after editing models
+   ```bash
+   flutter pub run build_runner build --delete-conflicting-outputs
+   ```
+4. **Run the app**
+   ```bash
+   flutter run
+   ```
+   The app starts in Arabic locale (`Locale('ar')`) with English also supported.
 
-- ✅ Organize your financial data into **folders** (like "Travel", "Business", etc.)
-- ✅ Each folder contains multiple **accounts** (like "Cash", "Bank", etc.)
-- ✅ Each account tracks detailed **transactions** (with date, amount, type, notes)
-- ✅ Add **income or expense** transactions with date picker
-- ✅ Real-time **balance calculation** per account and folder
-- ✅ Full **local persistence** using Hive (no data loss after restart)
-- ✅ **Riverpod state management** for centralized, reactive UI updates
-- ✅ Snackbar confirmations for actions (account creation, transaction addition)
-- ✅ Dark theme with Material 3 design and RTL layout support
-- ✅ Clean, modern UI following Flutter and UX best practices
-- ✅ Search and filter (coming soon)
-
----
-
-## 📸 Screenshots
-
-> *(Replace these with actual screenshots)*
-
-| Home Screen | Folder Details | Add Transaction |
-|-------------|----------------|------------------|
-| ![home](screenshots/home.png) | ![folder](screenshots/folder_details.png) | ![add_tx](screenshots/add_transaction.png) |
-
----
-
-## 🛠️ Installation
-
-### 1. Clone the repository
-
+## Running Tests
 ```bash
-git clone https://github.com/yourusername/yemen-finance-manager.git
-cd yemen-finance-manager
-2. Install dependencies
-bash
-Copy
-Edit
-flutter pub get
-3. Generate Hive Adapters (if needed)
-bash
-Copy
-Edit
-flutter packages pub run build_runner build
-4. Run the app
-bash
-Copy
-Edit
-flutter run
-📦 Dependencies
-Package	Use
-flutter_riverpod	State management
-hive & hive_flutter	Local data persistence
-path_provider	Access local storage paths
-intl	Date formatting with locale support
-flutter_localizations	Full Arabic + English localization
+flutter test
+```
 
-✅ Hive Adapters are created for: TransactionModel
-
-📁 Folder Structure
-bash
-Copy
-Edit
+## Project Structure (high level)
+```
 lib/
-├── main.dart                         # App initialization + Hive setup
-├── models/
-│   └── transaction_model.dart        # Hive-compatible transaction model
-├── providers/
-│   └── app_state_provider.dart       # Riverpod AppStateNotifier
-├── views/
-│   ├── home_screen.dart              # Shows folders
-│   ├── folder_details_screen.dart    # Shows accounts per folder
-│   ├── add_transaction_screen.dart   # Form to add a transaction
-│   ├── add_account_screen.dart       # Form to add a new account
-│   └── account_details_screen.dart   # (Upcoming) List + manage transactions per account
-├── widgets/
-│   ├── balances_card.dart            # Reusable balance summary card
-│   ├── account_list.dart             # Displays accounts within a folder
-│   └── folder_list.dart              # Displays folder cards
-🔮 Future Improvements
-🔍 Search & filter transactions by type, date, or text
+├── main.dart                 # Bootstraps Hive, localization, themes, LockGate
+├── models/                   # Hive models for transactions & folders
+├── providers/                # Riverpod notifiers (app state, prefs, theme, etc.)
+├── services/                 # Backup/import/export, reporting (CSV/PDF)
+├── views/                    # Screens: home, folder/account details, reports, settings
+├── widgets/                  # Reusable UI components (lists, cards, tiles)
+├── security/                 # App lock gate + biometric unlock flow
+└── theme/                    # Design tokens and theme setup
+assets/fonts/                 # Noto Naskh Arabic (bundled for UI and PDFs)
+```
 
-✏️ Edit / delete transactions
+## Data, Backup, and Restore
+- Data lives locally in Hive boxes. Backups can be exported to Downloads (mobile/desktop) or any picked location. Imports support merge or replace flows and refresh the in-app state.
+- Reports can be generated to CSV or PDF with optional folder/account filters; PDF output embeds Arabic fonts for correct rendering.
 
-📊 Summary charts (income vs. expense)
+## Contributing
+Pull requests and issues are welcome. Please format with Flutter defaults and run `flutter test` before submitting.
 
-☁️ Optional cloud sync (e.g., Firebase)
-
-🔒 Biometric security
-
-🌐 Multi-device sync
-
-👨‍💻 Author
-Built with ❤️ and attention to detail.
-Need support or want to contribute? Open an issue or PR on GitHub.
-
-📃 License
-This project is open source and available under the MIT License.
+## License
+MIT
